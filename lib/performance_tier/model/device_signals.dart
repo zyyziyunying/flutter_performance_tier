@@ -1,0 +1,84 @@
+import 'package:flutter/foundation.dart';
+
+@immutable
+class DeviceSignals {
+  const DeviceSignals({
+    required this.platform,
+    required this.collectedAt,
+    this.totalRamBytes,
+    this.isLowRamDevice,
+    this.mediaPerformanceClass,
+    this.sdkInt,
+  });
+
+  final String platform;
+  final int? totalRamBytes;
+  final bool? isLowRamDevice;
+  final int? mediaPerformanceClass;
+  final int? sdkInt;
+  final DateTime collectedAt;
+
+  int? get totalRamMb => totalRamBytes == null ? null : totalRamBytes! ~/ _mb;
+
+  Map<String, Object?> toMap() {
+    return <String, Object?>{
+      'platform': platform,
+      'totalRamBytes': totalRamBytes,
+      'isLowRamDevice': isLowRamDevice,
+      'mediaPerformanceClass': mediaPerformanceClass,
+      'sdkInt': sdkInt,
+      'collectedAt': collectedAt.toIso8601String(),
+    };
+  }
+
+  factory DeviceSignals.fromMap(
+    Map<String, dynamic> map, {
+    required DateTime collectedAt,
+  }) {
+    return DeviceSignals(
+      platform: _asString(map['platform']) ?? 'unknown',
+      totalRamBytes: _asInt(map['totalRamBytes']),
+      isLowRamDevice: _asBool(map['isLowRamDevice']),
+      mediaPerformanceClass: _asInt(map['mediaPerformanceClass']),
+      sdkInt: _asInt(map['sdkInt']),
+      collectedAt: collectedAt,
+    );
+  }
+
+  static const int _mb = 1024 * 1024;
+
+  static int? _asInt(Object? value) {
+    if (value is int) {
+      return value;
+    }
+    if (value is num) {
+      return value.toInt();
+    }
+    if (value is String) {
+      return int.tryParse(value);
+    }
+    return null;
+  }
+
+  static bool? _asBool(Object? value) {
+    if (value is bool) {
+      return value;
+    }
+    if (value is String) {
+      if (value.toLowerCase() == 'true') {
+        return true;
+      }
+      if (value.toLowerCase() == 'false') {
+        return false;
+      }
+    }
+    return null;
+  }
+
+  static String? _asString(Object? value) {
+    if (value is String && value.isNotEmpty) {
+      return value;
+    }
+    return null;
+  }
+}
