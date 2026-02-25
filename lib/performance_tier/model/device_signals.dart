@@ -5,6 +5,7 @@ class DeviceSignals {
   const DeviceSignals({
     required this.platform,
     required this.collectedAt,
+    this.deviceModel,
     this.totalRamBytes,
     this.isLowRamDevice,
     this.mediaPerformanceClass,
@@ -12,6 +13,7 @@ class DeviceSignals {
   });
 
   final String platform;
+  final String? deviceModel;
   final int? totalRamBytes;
   final bool? isLowRamDevice;
   final int? mediaPerformanceClass;
@@ -23,6 +25,7 @@ class DeviceSignals {
   Map<String, Object?> toMap() {
     return <String, Object?>{
       'platform': platform,
+      'deviceModel': deviceModel,
       'totalRamBytes': totalRamBytes,
       'isLowRamDevice': isLowRamDevice,
       'mediaPerformanceClass': mediaPerformanceClass,
@@ -37,6 +40,7 @@ class DeviceSignals {
   }) {
     return DeviceSignals(
       platform: _asString(map['platform']) ?? 'unknown',
+      deviceModel: _asString(map['deviceModel']),
       totalRamBytes: _asInt(map['totalRamBytes']),
       isLowRamDevice: _asBool(map['isLowRamDevice']),
       mediaPerformanceClass: _asInt(map['mediaPerformanceClass']),

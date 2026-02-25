@@ -45,6 +45,19 @@ class RuleBasedTierEngine implements TierEngine {
       }
     }
 
+    tier = _applySdkVersionCaps(
+      tier: tier,
+      sdkInt: signals.sdkInt,
+      config: config,
+      reasons: reasons,
+    );
+    tier = _applyModelTierCaps(
+      tier: tier,
+      deviceModel: signals.deviceModel,
+      config: config,
+      reasons: reasons,
+    );
+
     return TierDecision(
       tier: tier,
       confidence: _resolveConfidence(signals),
@@ -96,5 +109,70 @@ class RuleBasedTierEngine implements TierEngine {
       return lhs;
     }
     return rhs;
+  }
+
+  TierLevel _minTier(TierLevel lhs, TierLevel rhs) {
+    if (lhs.index <= rhs.index) {
+      return lhs;
+    }
+    return rhs;
+  }
+
+  TierLevel _applySdkVersionCaps({
+    required TierLevel tier,
+    required int? sdkInt,
+    required TierConfig config,
+    required List<String> reasons,
+  }) {
+    if (sdkInt == null) {
+      return tier;
+    }
+
+    var resolvedTier = tier;
+    if (config.minSdkForUltraTier > 0 &&
+        sdkInt < config.minSdkForUltraTier &&
+        resolvedTier.index > TierLevel.t2High.index) {
+      reasons.add(
+        'sdkInt=$sdkInt < minSdkForUltraTier=${config.minSdkForUltraTier}, '
+        'cap to ${TierLevel.t2High.name}.',
+      );
+      resolvedTier = _minTier(resolvedTier, TierLevel.t2High);
+    }
+    if (config.minSdkForHighTier > 0 &&
+        sdkInt < config.minSdkForHighTier &&
+        resolvedTier.index > TierLevel.t1Mid.index) {
+      reasons.add(
+        'sdkInt=$sdkInt < minSdkForHighTier=${config.minSdkForHighTier}, '
+        'cap to ${TierLevel.t1Mid.name}.',
+      );
+      resolvedTier = _minTier(resolvedTier, TierLevel.t1Mid);
+    }
+    return resolvedTier;
+  }
+
+  TierLevel _applyModelTierCaps({
+    required TierLevel tier,
+    required String? deviceModel,
+    required TierConfig config,
+    required List<String> reasons,
+  }) {
+    if (deviceModel == null || deviceModel.isEmpty) {
+      return tier;
+    }
+
+    var resolvedTier = tier;
+    for (final rule in config.modelTierCaps) {
+      if (!rule.matches(deviceModel)) {
+        continue;
+      }
+      final cappedTier = _minTier(resolvedTier, rule.maxTier);
+      reasons.add(
+        'deviceModel="$deviceModel" matched "${rule.pattern}", '
+        'max tier=${rule.maxTier.name}.',
+      );
+      resolvedTier = cappedTier;
+      break;
+    }
+    return resolvedTier;
   }
 }

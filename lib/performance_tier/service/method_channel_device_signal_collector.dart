@@ -19,7 +19,7 @@ class MethodChannelDeviceSignalCollector implements DeviceSignalCollector {
   Future<DeviceSignals> collect() async {
     final now = DateTime.now();
 
-    if (!Platform.isAndroid) {
+    if (!Platform.isAndroid && !Platform.isIOS) {
       return DeviceSignals(
         platform: Platform.operatingSystem,
         collectedAt: now,
@@ -29,10 +29,11 @@ class MethodChannelDeviceSignalCollector implements DeviceSignalCollector {
     final result = await _methodChannel.invokeMapMethod<String, dynamic>(
       _collectMethod,
     );
+    final normalized = <String, dynamic>{
+      'platform': Platform.operatingSystem,
+      ...?result,
+    };
 
-    return DeviceSignals.fromMap(
-      result ?? const <String, dynamic>{},
-      collectedAt: now,
-    );
+    return DeviceSignals.fromMap(normalized, collectedAt: now);
   }
 }

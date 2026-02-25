@@ -29,6 +29,7 @@ class DeviceSignalChannelHandler(
 
         return mapOf(
             "platform" to "android",
+            "deviceModel" to Build.MODEL.takeIf { it.isNotBlank() },
             "totalRamBytes" to memoryInfo.totalMem.takeIf { it > 0L },
             "isLowRamDevice" to activityManager?.isLowRamDevice,
             "mediaPerformanceClass" to mediaPerformanceClassOrNull(),

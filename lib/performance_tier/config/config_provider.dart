@@ -5,10 +5,14 @@ abstract interface class ConfigProvider {
 }
 
 class DefaultConfigProvider implements ConfigProvider {
-  const DefaultConfigProvider({this.config = const TierConfig()});
+  const DefaultConfigProvider({
+    this.config = const TierConfig(),
+    this.configOverride = const TierConfigOverride(),
+  });
 
   final TierConfig config;
+  final TierConfigOverride configOverride;
 
   @override
-  Future<TierConfig> load() async => config;
+  Future<TierConfig> load() async => config.applyOverride(configOverride);
 }
