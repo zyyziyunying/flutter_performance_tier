@@ -11,6 +11,7 @@ import '../performance_tier_service.dart';
 import '../policy/policy_resolver.dart';
 import 'device_signal_collector.dart';
 import 'method_channel_device_signal_collector.dart';
+import 'runtime_tier_controller.dart';
 
 class DefaultPerformanceTierService implements PerformanceTierService {
   DefaultPerformanceTierService({
@@ -18,30 +19,41 @@ class DefaultPerformanceTierService implements PerformanceTierService {
     TierEngine? engine,
     PolicyResolver? policyResolver,
     ConfigProvider? configProvider,
+    RuntimeTierController? runtimeTierController,
+    Duration runtimeSignalRefreshInterval = const Duration(seconds: 15),
   }) : _signalCollector =
            signalCollector ?? MethodChannelDeviceSignalCollector(),
        _engine = engine ?? const RuleBasedTierEngine(),
        _policyResolver = policyResolver ?? const DefaultPolicyResolver(),
-       _configProvider = configProvider ?? const DefaultConfigProvider();
+       _configProvider = configProvider ?? const DefaultConfigProvider(),
+       _runtimeTierController =
+           runtimeTierController ?? RuntimeTierController(),
+       _runtimeSignalRefreshInterval = runtimeSignalRefreshInterval;
 
   final DeviceSignalCollector _signalCollector;
   final TierEngine _engine;
   final PolicyResolver _policyResolver;
   final ConfigProvider _configProvider;
+  final RuntimeTierController _runtimeTierController;
+  final Duration _runtimeSignalRefreshInterval;
   final StreamController<TierDecision> _decisionController =
       StreamController<TierDecision>.broadcast();
 
   TierDecision? _currentDecision;
+  Future<void>? _recomputeInFlight;
+  Timer? _runtimeSignalTimer;
   bool _initialized = false;
+  bool _disposed = false;
 
   @override
   Future<void> initialize() async {
-    if (_initialized) {
+    if (_initialized || _disposed) {
       return;
     }
 
     _initialized = true;
-    await _recomputeDecision();
+    _startRuntimeSignalPolling();
+    await _recomputeDecisionSafely();
   }
 
   @override
@@ -71,11 +83,45 @@ class DefaultPerformanceTierService implements PerformanceTierService {
       return;
     }
 
-    await _recomputeDecision();
+    await _recomputeDecisionSafely();
   }
 
   Future<void> dispose() async {
+    if (_disposed) {
+      return;
+    }
+    _disposed = true;
+    _runtimeSignalTimer?.cancel();
     await _decisionController.close();
+  }
+
+  void _startRuntimeSignalPolling() {
+    _runtimeSignalTimer?.cancel();
+    if (_runtimeSignalRefreshInterval <= Duration.zero) {
+      return;
+    }
+    _runtimeSignalTimer = Timer.periodic(_runtimeSignalRefreshInterval, (_) {
+      if (!_initialized || _disposed) {
+        return;
+      }
+      unawaited(_recomputeDecisionSafely());
+    });
+  }
+
+  Future<void> _recomputeDecisionSafely() {
+    if (_disposed) {
+      return Future<void>.value();
+    }
+    final inFlight = _recomputeInFlight;
+    if (inFlight != null) {
+      return inFlight;
+    }
+
+    final next = _recomputeDecision().whenComplete(() {
+      _recomputeInFlight = null;
+    });
+    _recomputeInFlight = next;
+    return next;
   }
 
   Future<void> _recomputeDecision() async {
@@ -86,23 +132,34 @@ class DefaultPerformanceTierService implements PerformanceTierService {
     } catch (error) {
       final fallbackDecision = _buildFallbackDecision(error);
       _currentDecision = fallbackDecision;
-      _decisionController.add(fallbackDecision);
+      if (!_disposed && !_decisionController.isClosed) {
+        _decisionController.add(fallbackDecision);
+      }
       return;
     }
 
     final baseDecision = _engine.evaluate(signals: signals, config: config);
-    final policy = _policyResolver.resolve(baseDecision.tier);
+    final runtimeAdjustment = _runtimeTierController.adjust(
+      baseTier: baseDecision.tier,
+      signals: signals,
+    );
+    final resolvedTier = runtimeAdjustment.tier;
+    final policy = _policyResolver.resolve(resolvedTier);
     final reasons = <String>[
       ...baseDecision.reasons,
-      'Resolved policy for tier=${baseDecision.tier.name}.',
+      ...runtimeAdjustment.reasons,
+      'Resolved policy for tier=${resolvedTier.name}.',
     ];
     final decision = baseDecision.copyWith(
+      tier: resolvedTier,
       reasons: reasons,
       appliedPolicies: policy.toMap(),
     );
 
     _currentDecision = decision;
-    _decisionController.add(decision);
+    if (!_disposed && !_decisionController.isClosed) {
+      _decisionController.add(decision);
+    }
   }
 
   TierDecision _buildFallbackDecision(Object error) {

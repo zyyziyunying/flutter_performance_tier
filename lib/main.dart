@@ -39,6 +39,7 @@ class _PerformanceTierDemoPageState extends State<PerformanceTierDemoPage> {
 
   StreamSubscription<TierDecision>? _subscription;
   TierDecision? _decision;
+  String? _selectedScenarioId;
   String? _error;
   bool _initializing = true;
   bool _refreshing = false;
@@ -127,11 +128,13 @@ class _PerformanceTierDemoPageState extends State<PerformanceTierDemoPage> {
       'confidence=${decision.confidence.name}, '
       'platform=${decision.deviceSignals.platform}',
     );
+    final selectedScenarioId = _resolveSelectedScenarioId(decision);
     if (!mounted) {
       return;
     }
     setState(() {
       _decision = decision;
+      _selectedScenarioId = selectedScenarioId;
       _error = null;
       _initializing = false;
     });
@@ -209,6 +212,8 @@ class _PerformanceTierDemoPageState extends State<PerformanceTierDemoPage> {
 
     final decision = _decision!;
     final signals = decision.deviceSignals;
+    final resolvedPolicy = _readAppliedPolicy(decision);
+    final selectedScenario = _resolveSelectedScenario(resolvedPolicy);
 
     return Card(
       child: Padding(
@@ -269,6 +274,56 @@ class _PerformanceTierDemoPageState extends State<PerformanceTierDemoPage> {
                 (MapEntry<String, Object?> entry) =>
                     _buildValueRow(entry.key, '${entry.value}'),
               ),
+            const Divider(height: 28),
+            Text(
+              'Scenario Policy Hit',
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+            const SizedBox(height: 8),
+            if (resolvedPolicy == null)
+              const Text('Unable to parse applied policy payload.')
+            else if (resolvedPolicy.scenarioPolicies.isEmpty)
+              const Text('-')
+            else ...<Widget>[
+              DropdownButtonFormField<String>(
+                key: const ValueKey<String>('scenario-hit-selector'),
+                initialValue: selectedScenario!.id,
+                decoration: const InputDecoration(
+                  labelText: 'Scenario',
+                  border: OutlineInputBorder(),
+                  isDense: true,
+                ),
+                items: resolvedPolicy.scenarioPolicies
+                    .map(
+                      (ScenarioPolicy policy) => DropdownMenuItem<String>(
+                        value: policy.id,
+                        child: Text('${policy.displayName} (${policy.id})'),
+                      ),
+                    )
+                    .toList(),
+                onChanged: (String? value) {
+                  if (value == null || value == _selectedScenarioId) {
+                    return;
+                  }
+                  _appendLog('Scenario policy preview switched: $value.');
+                  setState(() {
+                    _selectedScenarioId = value;
+                  });
+                },
+              ),
+              const SizedBox(height: 12),
+              _buildScenarioMapSection('Knobs', selectedScenario.knobs),
+              const SizedBox(height: 12),
+              _buildScenarioMapSection(
+                'Acceptance Targets',
+                selectedScenario.acceptanceTargets,
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Business sample: policy.scenarioById(\'${selectedScenario.id}\')',
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+            ],
             if (_error != null) ...<Widget>[
               const Divider(height: 28),
               Text(
@@ -327,6 +382,75 @@ class _PerformanceTierDemoPageState extends State<PerformanceTierDemoPage> {
         ],
       ),
     );
+  }
+
+  Widget _buildScenarioMapSection(String title, Map<String, Object> values) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        border: Border.all(color: Theme.of(context).dividerColor),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            Text(title, style: Theme.of(context).textTheme.titleSmall),
+            const SizedBox(height: 8),
+            if (values.isEmpty)
+              const Text('-')
+            else
+              ...values.entries.map(
+                (entry) =>
+                    _buildValueRow(entry.key, _formatPolicyValue(entry.value)),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  String? _resolveSelectedScenarioId(TierDecision decision) {
+    final policy = _readAppliedPolicy(decision);
+    if (policy == null || policy.scenarioPolicies.isEmpty) {
+      return null;
+    }
+    if (_selectedScenarioId != null &&
+        policy.scenarioById(_selectedScenarioId!) != null) {
+      return _selectedScenarioId;
+    }
+    return policy.scenarioPolicies.first.id;
+  }
+
+  ScenarioPolicy? _resolveSelectedScenario(PerformancePolicy? policy) {
+    if (policy == null || policy.scenarioPolicies.isEmpty) {
+      return null;
+    }
+    if (_selectedScenarioId == null) {
+      return policy.scenarioPolicies.first;
+    }
+    return policy.scenarioById(_selectedScenarioId!) ??
+        policy.scenarioPolicies.first;
+  }
+
+  PerformancePolicy? _readAppliedPolicy(TierDecision decision) {
+    if (decision.appliedPolicies.isEmpty) {
+      return null;
+    }
+    try {
+      return PerformancePolicy.fromMap(
+        Map<String, Object?>.from(decision.appliedPolicies),
+      );
+    } on FormatException {
+      return null;
+    }
+  }
+
+  static String _formatPolicyValue(Object value) {
+    if (value is Map<Object?, Object?> || value is List<Object?>) {
+      return value.toString();
+    }
+    return '$value';
   }
 
   static String _formatBytes(int bytes) {
