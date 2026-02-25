@@ -7,6 +7,7 @@ export 'engine/rule_based_tier_engine.dart';
 export 'engine/tier_engine.dart';
 
 export 'model/device_signals.dart';
+export 'model/runtime_tier_observation.dart';
 export 'model/tier_confidence.dart';
 export 'model/tier_decision.dart';
 export 'model/tier_level.dart';

@@ -154,6 +154,7 @@ class DefaultPerformanceTierService implements PerformanceTierService {
       tier: resolvedTier,
       reasons: reasons,
       appliedPolicies: policy.toMap(),
+      runtimeObservation: runtimeAdjustment.observation,
     );
 
     _currentDecision = decision;

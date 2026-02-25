@@ -108,6 +108,11 @@ void main() {
         ),
         isTrue,
       );
+      expect(decision.runtimeObservation.status, RuntimeTierStatus.active);
+      expect(
+        decision.runtimeObservation.triggerReason,
+        contains('thermalState=serious(level=2)'),
+      );
       expect(resolver.resolveCalls, <TierLevel>[TierLevel.t1Mid]);
     });
 
@@ -168,6 +173,11 @@ void main() {
             (reason) => reason.contains('memoryPressure=critical'),
           ),
           isTrue,
+        );
+        expect(decision.runtimeObservation.status, RuntimeTierStatus.active);
+        expect(
+          decision.runtimeObservation.triggerReason,
+          contains('memoryPressure=critical'),
         );
         expect(resolver.resolveCalls, <TierLevel>[TierLevel.t1Mid]);
       },

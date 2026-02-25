@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 
 import 'device_signals.dart';
+import 'runtime_tier_observation.dart';
 import 'tier_confidence.dart';
 import 'tier_level.dart';
 
@@ -12,6 +13,7 @@ class TierDecision {
     required this.deviceSignals,
     List<String> reasons = const <String>[],
     Map<String, Object?> appliedPolicies = const <String, Object?>{},
+    this.runtimeObservation = const RuntimeTierObservation(),
     DateTime? decidedAt,
   }) : reasons = List<String>.unmodifiable(reasons),
        appliedPolicies = Map<String, Object?>.unmodifiable(appliedPolicies),
@@ -22,6 +24,7 @@ class TierDecision {
   final DeviceSignals deviceSignals;
   final List<String> reasons;
   final Map<String, Object?> appliedPolicies;
+  final RuntimeTierObservation runtimeObservation;
   final DateTime decidedAt;
 
   TierDecision copyWith({
@@ -30,6 +33,7 @@ class TierDecision {
     DeviceSignals? deviceSignals,
     List<String>? reasons,
     Map<String, Object?>? appliedPolicies,
+    RuntimeTierObservation? runtimeObservation,
     DateTime? decidedAt,
   }) {
     return TierDecision(
@@ -38,6 +42,7 @@ class TierDecision {
       deviceSignals: deviceSignals ?? this.deviceSignals,
       reasons: reasons ?? this.reasons,
       appliedPolicies: appliedPolicies ?? this.appliedPolicies,
+      runtimeObservation: runtimeObservation ?? this.runtimeObservation,
       decidedAt: decidedAt ?? this.decidedAt,
     );
   }

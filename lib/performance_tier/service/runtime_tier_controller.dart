@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 
 import '../model/device_signals.dart';
+import '../model/runtime_tier_observation.dart';
 import '../model/tier_level.dart';
 
 @immutable
@@ -34,10 +35,12 @@ class RuntimeTierControllerConfig {
 class RuntimeTierAdjustment {
   RuntimeTierAdjustment({
     required this.tier,
+    this.observation = const RuntimeTierObservation(),
     List<String> reasons = const <String>[],
   }) : reasons = List<String>.unmodifiable(reasons);
 
   final TierLevel tier;
+  final RuntimeTierObservation observation;
   final List<String> reasons;
 }
 
@@ -88,6 +91,10 @@ class RuntimeTierController {
         final remaining = config.downgradeDebounce - pendingFor;
         return RuntimeTierAdjustment(
           tier: baseTier,
+          observation: RuntimeTierObservation(
+            status: RuntimeTierStatus.pending,
+            triggerReason: signal.description,
+          ),
           reasons: <String>[
             'Runtime downgrade pending: ${signal.description}; '
                 'debounceRemainingMs=${remaining.inMilliseconds}.',
@@ -104,6 +111,10 @@ class RuntimeTierController {
       final downgradedTier = _downgrade(baseTier, _activeDowngradeSteps!);
       return RuntimeTierAdjustment(
         tier: downgradedTier,
+        observation: RuntimeTierObservation(
+          status: RuntimeTierStatus.active,
+          triggerReason: signal.description,
+        ),
         reasons: <String>[
           'Runtime downgrade active: ${signal.description}; '
               'downgradeSteps=${_activeDowngradeSteps!}, '
@@ -123,6 +134,10 @@ class RuntimeTierController {
       final downgradedTier = _downgrade(baseTier, _activeDowngradeSteps!);
       return RuntimeTierAdjustment(
         tier: downgradedTier,
+        observation: RuntimeTierObservation(
+          status: RuntimeTierStatus.active,
+          triggerReason: signal.description,
+        ),
         reasons: <String>[
           'Runtime downgrade active: ${signal.description}; '
               'downgradeSteps=${_activeDowngradeSteps!}, '
@@ -148,7 +163,12 @@ class RuntimeTierController {
     final activeSteps = _activeDowngradeSteps;
     if (activeSteps == null) {
       _clearPendingUpgrade();
-      return RuntimeTierAdjustment(tier: baseTier);
+      return RuntimeTierAdjustment(
+        tier: baseTier,
+        observation: const RuntimeTierObservation(
+          status: RuntimeTierStatus.inactive,
+        ),
+      );
     }
 
     return _handleUpgradeThrottle(
@@ -167,7 +187,12 @@ class RuntimeTierController {
   }) {
     final activeSteps = _activeDowngradeSteps;
     if (activeSteps == null || targetDowngradeSteps >= activeSteps) {
-      return RuntimeTierAdjustment(tier: baseTier);
+      return RuntimeTierAdjustment(
+        tier: baseTier,
+        observation: const RuntimeTierObservation(
+          status: RuntimeTierStatus.inactive,
+        ),
+      );
     }
 
     if (targetDowngradeSteps == 0) {
@@ -183,10 +208,15 @@ class RuntimeTierController {
         if (elapsed < config.recoveryCooldown) {
           final downgradedTier = _downgrade(baseTier, activeSteps);
           final remaining = config.recoveryCooldown - elapsed;
+          final triggerReason = _activeSignalDescription ?? 'runtime pressure';
           return RuntimeTierAdjustment(
             tier: downgradedTier,
+            observation: RuntimeTierObservation(
+              status: RuntimeTierStatus.cooldown,
+              triggerReason: triggerReason,
+            ),
             reasons: <String>[
-              'Runtime cooldown active: ${_activeSignalDescription ?? 'runtime pressure'}; '
+              'Runtime cooldown active: $triggerReason; '
                   'cooldownRemainingMs=${remaining.inMilliseconds}, '
                   'tier=${baseTier.name}->${downgradedTier.name}.',
             ],
@@ -208,10 +238,17 @@ class RuntimeTierController {
       final reasonPrefix = targetDowngradeSteps == 0
           ? 'Runtime recovery pending'
           : 'Runtime upgrade pending';
+      final triggerReason = targetDowngradeSteps == 0
+          ? (_activeSignalDescription ?? 'runtime pressure')
+          : targetDescription;
       return RuntimeTierAdjustment(
         tier: downgradedTier,
+        observation: RuntimeTierObservation(
+          status: RuntimeTierStatus.recoveryPending,
+          triggerReason: triggerReason,
+        ),
         reasons: <String>[
-          '$reasonPrefix: ${_activeSignalDescription ?? 'runtime pressure'}; '
+          '$reasonPrefix: $triggerReason; '
               'upgradeDebounceRemainingMs=${remaining.inMilliseconds}, '
               'tier=${baseTier.name}->${downgradedTier.name}.',
         ],
@@ -224,6 +261,10 @@ class RuntimeTierController {
       _clearActiveDowngrade();
       return RuntimeTierAdjustment(
         tier: baseTier,
+        observation: RuntimeTierObservation(
+          status: RuntimeTierStatus.recovered,
+          triggerReason: recoveredFrom,
+        ),
         reasons: <String>[
           'Runtime downgrade recovered after throttled upgrade: $recoveredFrom.',
         ],
@@ -236,10 +277,18 @@ class RuntimeTierController {
     }
     _pendingUpgradeAt = now;
     final downgradedTier = _downgrade(baseTier, nextSteps);
+    final triggerReason = targetDowngradeSteps == 0
+        ? (_activeSignalDescription ?? 'runtime pressure')
+        : targetDescription;
     return RuntimeTierAdjustment(
       tier: downgradedTier,
+      observation: RuntimeTierObservation(
+        status: RuntimeTierStatus.active,
+        triggerReason: triggerReason,
+      ),
       reasons: <String>[
-        'Runtime upgrade step applied: downgradeSteps=$activeSteps->$nextSteps, '
+        'Runtime upgrade step applied: $triggerReason; '
+            'downgradeSteps=$activeSteps->$nextSteps, '
             'targetDowngradeSteps=$targetDowngradeSteps, '
             'tier=${baseTier.name}->${downgradedTier.name}.',
       ],

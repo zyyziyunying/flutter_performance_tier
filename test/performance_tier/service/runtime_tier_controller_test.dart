@@ -18,6 +18,8 @@ void main() {
 
       expect(adjustment.tier, TierLevel.t3Ultra);
       expect(adjustment.reasons, isEmpty);
+      expect(adjustment.observation.status, RuntimeTierStatus.inactive);
+      expect(adjustment.observation.triggerReason, isNull);
     });
 
     test('waits for debounce window before applying downgrade', () {
@@ -39,6 +41,8 @@ void main() {
       );
       expect(first.tier, TierLevel.t3Ultra);
       expect(first.reasons.single, contains('Runtime downgrade pending'));
+      expect(first.observation.status, RuntimeTierStatus.pending);
+      expect(first.observation.triggerReason, 'lowPowerMode=true');
 
       clock.advance(const Duration(seconds: 5));
       final second = controller.adjust(
@@ -50,6 +54,8 @@ void main() {
       );
       expect(second.tier, TierLevel.t2High);
       expect(second.reasons.single, contains('Runtime downgrade active'));
+      expect(second.observation.status, RuntimeTierStatus.active);
+      expect(second.observation.triggerReason, 'lowPowerMode=true');
     });
 
     test('recovers in throttled upgrade steps after cooldown', () {
@@ -68,6 +74,11 @@ void main() {
         signals: _iosSignals(collectedAt: clock.now(), thermalStateLevel: 2),
       );
       expect(activated.tier, TierLevel.t1Mid);
+      expect(activated.observation.status, RuntimeTierStatus.active);
+      expect(
+        activated.observation.triggerReason,
+        contains('thermalState=serious(level=2)'),
+      );
 
       clock.advance(const Duration(seconds: 10));
       final inCooldown = controller.adjust(
@@ -76,6 +87,11 @@ void main() {
       );
       expect(inCooldown.tier, TierLevel.t1Mid);
       expect(inCooldown.reasons.single, contains('Runtime cooldown active'));
+      expect(inCooldown.observation.status, RuntimeTierStatus.cooldown);
+      expect(
+        inCooldown.observation.triggerReason,
+        contains('thermalState=serious(level=2)'),
+      );
 
       clock.advance(const Duration(seconds: 11));
       final firstUpgrade = controller.adjust(
@@ -84,6 +100,7 @@ void main() {
       );
       expect(firstUpgrade.tier, TierLevel.t2High);
       expect(firstUpgrade.reasons.single, contains('Runtime upgrade step'));
+      expect(firstUpgrade.observation.status, RuntimeTierStatus.active);
 
       clock.advance(const Duration(seconds: 4));
       final pendingUpgrade = controller.adjust(
@@ -95,6 +112,10 @@ void main() {
         pendingUpgrade.reasons.single,
         contains('Runtime recovery pending'),
       );
+      expect(
+        pendingUpgrade.observation.status,
+        RuntimeTierStatus.recoveryPending,
+      );
 
       clock.advance(const Duration(seconds: 1));
       final recovered = controller.adjust(
@@ -103,6 +124,7 @@ void main() {
       );
       expect(recovered.tier, TierLevel.t3Ultra);
       expect(recovered.reasons.single, contains('Runtime downgrade recovered'));
+      expect(recovered.observation.status, RuntimeTierStatus.recovered);
     });
 
     test('maps critical thermal pressure to the lowest tier', () {
@@ -126,6 +148,11 @@ void main() {
 
       expect(adjustment.tier, TierLevel.t0Low);
       expect(adjustment.reasons.single, contains('thermalState=critical'));
+      expect(adjustment.observation.status, RuntimeTierStatus.active);
+      expect(
+        adjustment.observation.triggerReason,
+        contains('thermalState=critical'),
+      );
     });
 
     test('downgrades tier when memory pressure is critical', () {
@@ -150,6 +177,11 @@ void main() {
 
       expect(adjustment.tier, TierLevel.t1Mid);
       expect(adjustment.reasons.single, contains('memoryPressure=critical'));
+      expect(adjustment.observation.status, RuntimeTierStatus.active);
+      expect(
+        adjustment.observation.triggerReason,
+        contains('memoryPressure=critical'),
+      );
     });
   });
 }

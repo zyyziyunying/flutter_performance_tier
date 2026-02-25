@@ -52,7 +52,7 @@
 
 Tier 变化采用“按步数降档”，最低不低于 `t0Low`。
 
-## 4. 时序控制（防抖/冷却/恢复节流）
+## 4. 时序控制（防抖 / 冷却 / 恢复节流）
 
 默认时间参数：
 
@@ -65,7 +65,7 @@ Tier 变化采用“按步数降档”，最低不低于 `t0Low`。
 - **pending**：有降级信号但仍在降级防抖窗口。
 - **active**：降级已生效。
 - **cooldown**：信号消失后，仍在冷却窗口，保持降级。
-- **recovery-pending / upgrade-pending**：允许恢复后，仍在升级防抖窗口，保持当前档位。
+- **recovery-pending**：允许恢复后，仍在升级防抖窗口，保持当前档位。
 - **recovered**：恢复到基线 tier。
 
 恢复策略（当前版本）：
@@ -86,13 +86,11 @@ Tier 变化采用“按步数降档”，最低不低于 `t0Low`。
 
 当前可观测输出：
 
-- `TierDecision.reasons` 内含运行期状态信息，例如：
-  - `Runtime downgrade pending...`
-  - `Runtime downgrade active...`
-  - `Runtime cooldown active...`
-  - `Runtime recovery pending...`
-  - `Runtime upgrade step applied...`
-  - `Runtime downgrade recovered...`
+- `TierDecision.runtimeObservation`（结构化）：
+  - `status`：`inactive/pending/active/cooldown/recovery-pending/recovered`
+  - `triggerReason`：触发信号摘要（如 `thermalState=serious(level=2)`）
+- `TierDecision.reasons`（文本）仍保留详细链路信息，便于排障。
+- demo 面板已展示 `Runtime State`、`Runtime Trigger` 与内存压力字段。
 
 已覆盖测试：
 
@@ -100,15 +98,18 @@ Tier 变化采用“按步数降档”，最低不低于 `t0Low`。
   - 降级防抖
   - 冷却保持
   - 逐级恢复与升级防抖
-  - 热状态/内存压力降级映射
+  - 热状态 / 内存压力降级映射
+  - 结构化状态字段断言
 - `test/performance_tier/service/default_performance_tier_service_test.dart`
   - 运行期降级在策略解析前生效
   - 内存压力触发服务编排降级
+  - `runtimeObservation` 透传断言
 - `test/performance_tier/service/platform_field_integrity_test.dart`
-  - Android/iOS 内存压力字段契约与 Dart 解析完整性
+  - Android / iOS 内存压力字段契约与 Dart 解析完整性
+- `test/widget_test.dart`
+  - demo 运行期可观测字段可见性
 
 ## 7. 后续建议
 
-- 在 demo 面板显式展示运行期状态机状态（不仅依赖 reasons 文本）。
 - 增加掉帧信号作为可选降级输入，并支持场景级开关。
 - 累计运行期触发次数与停留时长埋点，为阈值调优提供数据依据。

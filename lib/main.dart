@@ -123,10 +123,12 @@ class _PerformanceTierDemoPageState extends State<PerformanceTierDemoPage> {
   }
 
   void _onDecision(TierDecision decision) {
+    final runtimeStatus = decision.runtimeObservation.status.wireName;
     _appendLog(
       'Decision updated: tier=${decision.tier.name}, '
       'confidence=${decision.confidence.name}, '
-      'platform=${decision.deviceSignals.platform}',
+      'platform=${decision.deviceSignals.platform}, '
+      'runtimeState=$runtimeStatus',
     );
     final selectedScenarioId = _resolveSelectedScenarioId(decision);
     if (!mounted) {
@@ -212,6 +214,7 @@ class _PerformanceTierDemoPageState extends State<PerformanceTierDemoPage> {
 
     final decision = _decision!;
     final signals = decision.deviceSignals;
+    final runtimeObservation = decision.runtimeObservation;
     final resolvedPolicy = _readAppliedPolicy(decision);
     final selectedScenario = _resolveSelectedScenario(resolvedPolicy);
 
@@ -253,6 +256,22 @@ class _PerformanceTierDemoPageState extends State<PerformanceTierDemoPage> {
             _buildValueRow(
               'Low Power Mode',
               '${signals.isLowPowerModeEnabled ?? '-'}',
+            ),
+            _buildValueRow(
+              'Memory Pressure State',
+              signals.memoryPressureState ?? '-',
+            ),
+            _buildValueRow(
+              'Memory Pressure Level',
+              '${signals.memoryPressureLevel ?? '-'}',
+            ),
+            _buildValueRow(
+              'Runtime State',
+              _formatRuntimeState(runtimeObservation.status),
+            ),
+            _buildValueRow(
+              'Runtime Trigger',
+              runtimeObservation.triggerReason ?? '-',
             ),
             const Divider(height: 28),
             Text('Reasons', style: Theme.of(context).textTheme.titleMedium),
@@ -451,6 +470,13 @@ class _PerformanceTierDemoPageState extends State<PerformanceTierDemoPage> {
       return value.toString();
     }
     return '$value';
+  }
+
+  static String _formatRuntimeState(RuntimeTierStatus status) {
+    if (status == RuntimeTierStatus.inactive) {
+      return '-';
+    }
+    return status.wireName;
   }
 
   static String _formatBytes(int bytes) {
