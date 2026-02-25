@@ -46,6 +46,9 @@ import Darwin
       "totalRamBytes": totalRamBytes,
       "isLowRamDevice": isLowRamDevice,
       "sdkInt": majorVersion,
+      "thermalState": thermalStateName(processInfo.thermalState),
+      "thermalStateLevel": thermalStateLevel(processInfo.thermalState),
+      "isLowPowerModeEnabled": processInfo.isLowPowerModeEnabled,
     ]
   }
 
@@ -59,5 +62,35 @@ import Darwin
       }
     }
     return identifier.isEmpty ? nil : identifier
+  }
+
+  private func thermalStateName(_ state: ProcessInfo.ThermalState) -> String {
+    switch state {
+    case .nominal:
+      return "nominal"
+    case .fair:
+      return "fair"
+    case .serious:
+      return "serious"
+    case .critical:
+      return "critical"
+    @unknown default:
+      return "unknown"
+    }
+  }
+
+  private func thermalStateLevel(_ state: ProcessInfo.ThermalState) -> Int {
+    switch state {
+    case .nominal:
+      return 0
+    case .fair:
+      return 1
+    case .serious:
+      return 2
+    case .critical:
+      return 3
+    @unknown default:
+      return -1
+    }
   }
 }

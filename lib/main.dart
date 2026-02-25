@@ -240,6 +240,15 @@ class _PerformanceTierDemoPageState extends State<PerformanceTierDemoPage> {
               '${signals.mediaPerformanceClass ?? '-'}',
             ),
             _buildValueRow('SDK Int / OS Major', '${signals.sdkInt ?? '-'}'),
+            _buildValueRow('Thermal State', signals.thermalState ?? '-'),
+            _buildValueRow(
+              'Thermal State Level',
+              '${signals.thermalStateLevel ?? '-'}',
+            ),
+            _buildValueRow(
+              'Low Power Mode',
+              '${signals.isLowPowerModeEnabled ?? '-'}',
+            ),
             const Divider(height: 28),
             Text('Reasons', style: Theme.of(context).textTheme.titleMedium),
             const SizedBox(height: 8),

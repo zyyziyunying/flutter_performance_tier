@@ -13,6 +13,7 @@ export 'model/tier_level.dart';
 
 export 'policy/performance_policy.dart';
 export 'policy/policy_resolver.dart';
+export 'policy/scenario_policy.dart';
 
 export 'service/default_performance_tier_service.dart';
 export 'service/device_signal_collector.dart';

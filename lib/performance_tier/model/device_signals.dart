@@ -10,6 +10,9 @@ class DeviceSignals {
     this.isLowRamDevice,
     this.mediaPerformanceClass,
     this.sdkInt,
+    this.thermalState,
+    this.thermalStateLevel,
+    this.isLowPowerModeEnabled,
   });
 
   final String platform;
@@ -18,6 +21,9 @@ class DeviceSignals {
   final bool? isLowRamDevice;
   final int? mediaPerformanceClass;
   final int? sdkInt;
+  final String? thermalState;
+  final int? thermalStateLevel;
+  final bool? isLowPowerModeEnabled;
   final DateTime collectedAt;
 
   int? get totalRamMb => totalRamBytes == null ? null : totalRamBytes! ~/ _mb;
@@ -30,6 +36,9 @@ class DeviceSignals {
       'isLowRamDevice': isLowRamDevice,
       'mediaPerformanceClass': mediaPerformanceClass,
       'sdkInt': sdkInt,
+      'thermalState': thermalState,
+      'thermalStateLevel': thermalStateLevel,
+      'isLowPowerModeEnabled': isLowPowerModeEnabled,
       'collectedAt': collectedAt.toIso8601String(),
     };
   }
@@ -45,6 +54,9 @@ class DeviceSignals {
       isLowRamDevice: _asBool(map['isLowRamDevice']),
       mediaPerformanceClass: _asInt(map['mediaPerformanceClass']),
       sdkInt: _asInt(map['sdkInt']),
+      thermalState: _asString(map['thermalState']),
+      thermalStateLevel: _asInt(map['thermalStateLevel']),
+      isLowPowerModeEnabled: _asBool(map['isLowPowerModeEnabled']),
       collectedAt: collectedAt,
     );
   }
