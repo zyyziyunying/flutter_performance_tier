@@ -29,4 +29,11 @@ class RuntimeTierObservation {
 
   final RuntimeTierStatus status;
   final String? triggerReason;
+
+  Map<String, Object?> toMap() {
+    return <String, Object?>{
+      'status': status.wireName,
+      'triggerReason': triggerReason,
+    };
+  }
 }

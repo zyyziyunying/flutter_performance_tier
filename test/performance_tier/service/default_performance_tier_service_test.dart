@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter_performance_tier/performance_tier/performance_tier.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -52,6 +54,54 @@ void main() {
       );
       expect(decision.appliedPolicies['animationLevel'], 2);
       expect(decision.appliedPolicies['decodeConcurrency'], 2);
+    });
+
+    test('emits structured decision logs for initialize and refresh', () async {
+      final collector = _SequenceSignalCollector(<DeviceSignals>[
+        _androidSignals(
+          ramBytes: 4 * _bytesPerGb,
+          mediaPerformanceClass: 11,
+          sdkInt: 34,
+        ),
+        _androidSignals(
+          ramBytes: 12 * _bytesPerGb,
+          mediaPerformanceClass: 13,
+          sdkInt: 35,
+        ),
+      ]);
+      final logger = _RecordingLogger();
+      final service = DefaultPerformanceTierService(
+        signalCollector: collector,
+        configProvider: const DefaultConfigProvider(),
+        engine: const RuleBasedTierEngine(),
+        policyResolver: const DefaultPolicyResolver(),
+        runtimeSignalRefreshInterval: Duration.zero,
+        logger: logger,
+      );
+      addTearDown(service.dispose);
+
+      await service.initialize();
+      await service.refresh();
+
+      final completedEvents = logger.records
+          .where((record) => record.event == 'decision.recompute.completed')
+          .toList();
+
+      expect(completedEvents, hasLength(2));
+      expect(completedEvents.first.payload['trigger'], 'initialize');
+      expect(
+        completedEvents.first.payload['transition'],
+        containsPair('type', 'initial'),
+      );
+      expect(completedEvents.last.payload['trigger'], 'manualRefresh');
+      expect(
+        completedEvents.last.payload['transition'],
+        containsPair('fromTier', TierLevel.t1Mid.name),
+      );
+      expect(
+        completedEvents.last.payload['transition'],
+        containsPair('toTier', TierLevel.t3Ultra.name),
+      );
     });
 
     test('applies runtime downgrade before resolving tier policy', () async {
@@ -500,12 +550,23 @@ void main() {
       final p50Us = _percentile(latenciesUs, percentile: 0.50);
       final p95Us = _percentile(latenciesUs, percentile: 0.95);
       final maxUs = latenciesUs.last;
-      debugPrint(
-        'DefaultPerformanceTierService initialize baseline: '
-        'p50=${_toMilliseconds(p50Us)}ms, '
-        'p95=${_toMilliseconds(p95Us)}ms, '
-        'max=${_toMilliseconds(maxUs)}ms',
-      );
+      final report = <String, Object>{
+        'tag': 'PERF_TIER_TEST_RESULT',
+        'suite': 'default_performance_tier_service.initialize_baseline',
+        'warmupRuns': warmupRuns,
+        'measuredRuns': measuredRuns,
+        'metrics': <String, Object>{
+          'p50Ms': _toMillisecondsValue(p50Us),
+          'p95Ms': _toMillisecondsValue(p95Us),
+          'maxMs': _toMillisecondsValue(maxUs),
+          'p50Us': p50Us,
+          'p95Us': p95Us,
+          'maxUs': maxUs,
+        },
+        'budget': const <String, Object>{'p95MsMax': 300},
+        'result': p95Us <= 300000 ? 'pass' : 'fail',
+      };
+      debugPrint('PERF_TIER_TEST_RESULT ${jsonEncode(report)}');
 
       expect(
         p95Us,
@@ -599,6 +660,15 @@ class _RecordingPolicyResolver implements PolicyResolver {
   }
 }
 
+class _RecordingLogger implements PerformanceTierLogger {
+  final List<PerformanceTierLogRecord> records = <PerformanceTierLogRecord>[];
+
+  @override
+  void log(PerformanceTierLogRecord record) {
+    records.add(record);
+  }
+}
+
 DeviceSignals _androidSignals({
   required int ramBytes,
   required int sdkInt,
@@ -683,4 +753,8 @@ int _percentile(List<int> sortedValues, {required double percentile}) {
 
 String _toMilliseconds(int microseconds) {
   return (microseconds / 1000).toStringAsFixed(2);
+}
+
+double _toMillisecondsValue(int microseconds) {
+  return microseconds / 1000;
 }

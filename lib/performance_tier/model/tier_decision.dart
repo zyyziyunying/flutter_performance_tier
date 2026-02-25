@@ -27,6 +27,18 @@ class TierDecision {
   final RuntimeTierObservation runtimeObservation;
   final DateTime decidedAt;
 
+  Map<String, Object?> toMap() {
+    return <String, Object?>{
+      'tier': tier.name,
+      'confidence': confidence.name,
+      'decidedAt': decidedAt.toIso8601String(),
+      'deviceSignals': deviceSignals.toMap(),
+      'runtimeObservation': runtimeObservation.toMap(),
+      'reasons': reasons,
+      'appliedPolicies': appliedPolicies,
+    };
+  }
+
   TierDecision copyWith({
     TierLevel? tier,
     TierConfidence? confidence,

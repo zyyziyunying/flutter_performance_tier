@@ -6,6 +6,8 @@ export 'config/tier_config.dart';
 export 'engine/rule_based_tier_engine.dart';
 export 'engine/tier_engine.dart';
 
+export 'logging/performance_tier_logger.dart';
+
 export 'model/device_signals.dart';
 export 'model/runtime_tier_observation.dart';
 export 'model/tier_confidence.dart';

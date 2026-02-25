@@ -14,6 +14,15 @@
 - `flutter test`
 - `flutter run`
 
+## 结构化日志优先（已移除面板）
+
+最新 Demo 已改为“结构化日志输出优先”，不再展示复杂决策面板。  
+核心输出为 `PERF_TIER_LOG` 前缀的 JSON Line，便于直接复制给 AI 排查。
+
+- 运行 `flutter run` 后，在控制台筛选 `PERF_TIER_LOG`
+- App 内可一键复制 `AI Diagnostics JSON`
+- `flutter test` 会输出 `PERF_TIER_TEST_RESULT` JSON 结果
+
 ## 快速接入：开启掉帧信号（可选）
 
 默认情况下，掉帧信号关闭。  
