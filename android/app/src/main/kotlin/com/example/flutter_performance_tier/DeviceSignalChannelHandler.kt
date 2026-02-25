@@ -26,6 +26,7 @@ class DeviceSignalChannelHandler(
         val activityManager = context.getSystemService(Context.ACTIVITY_SERVICE) as? ActivityManager
         val memoryInfo = ActivityManager.MemoryInfo()
         activityManager?.getMemoryInfo(memoryInfo)
+        val memoryPressureLevel = resolveMemoryPressureLevel(memoryInfo)
 
         return mapOf(
             "platform" to "android",
@@ -33,7 +34,9 @@ class DeviceSignalChannelHandler(
             "totalRamBytes" to memoryInfo.totalMem.takeIf { it > 0L },
             "isLowRamDevice" to activityManager?.isLowRamDevice,
             "mediaPerformanceClass" to mediaPerformanceClassOrNull(),
-            "sdkInt" to Build.VERSION.SDK_INT
+            "sdkInt" to Build.VERSION.SDK_INT,
+            "memoryPressureState" to memoryPressureState(memoryPressureLevel),
+            "memoryPressureLevel" to memoryPressureLevel
         )
     }
 
@@ -44,5 +47,23 @@ class DeviceSignalChannelHandler(
 
         val mediaPerformanceClass = Build.VERSION.MEDIA_PERFORMANCE_CLASS
         return mediaPerformanceClass.takeIf { it > 0 }
+    }
+
+    private fun resolveMemoryPressureLevel(memoryInfo: ActivityManager.MemoryInfo): Int {
+        if (memoryInfo.lowMemory) {
+            return 2
+        }
+        if (memoryInfo.threshold > 0L && memoryInfo.availMem <= memoryInfo.threshold * 2L) {
+            return 1
+        }
+        return 0
+    }
+
+    private fun memoryPressureState(level: Int): String {
+        return when {
+            level >= 2 -> "critical"
+            level >= 1 -> "moderate"
+            else -> "normal"
+        }
     }
 }

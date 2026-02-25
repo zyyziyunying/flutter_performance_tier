@@ -7,14 +7,31 @@ import Darwin
   private static let deviceSignalsChannelName = "performance_tier/device_signals"
   private static let collectDeviceSignalsMethod = "collectDeviceSignals"
   private static let lowRamThresholdBytes = Int64(3 * 1024 * 1024 * 1024)
+  private static let criticalMemoryWarningWindow: TimeInterval = 30
+  private static let moderateMemoryWarningWindow: TimeInterval = 120
 
   private var deviceSignalsChannel: FlutterMethodChannel?
+  private var lastMemoryWarningAt: Date?
 
   override func application(
     _ application: UIApplication,
     didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?
   ) -> Bool {
+    NotificationCenter.default.addObserver(
+      self,
+      selector: #selector(handleMemoryWarningNotification(_:)),
+      name: UIApplication.didReceiveMemoryWarningNotification,
+      object: nil
+    )
     return super.application(application, didFinishLaunchingWithOptions: launchOptions)
+  }
+
+  deinit {
+    NotificationCenter.default.removeObserver(
+      self,
+      name: UIApplication.didReceiveMemoryWarningNotification,
+      object: nil
+    )
   }
 
   func didInitializeImplicitFlutterEngine(_ engineBridge: FlutterImplicitEngineBridge) {
@@ -39,6 +56,7 @@ import Darwin
     let totalRamBytes = Int64(min(processInfo.physicalMemory, UInt64(Int64.max)))
     let isLowRamDevice = totalRamBytes <= Self.lowRamThresholdBytes
     let majorVersion = processInfo.operatingSystemVersion.majorVersion
+    let memoryPressureLevel = memoryPressureLevel(now: Date())
 
     return [
       "platform": "ios",
@@ -49,7 +67,14 @@ import Darwin
       "thermalState": thermalStateName(processInfo.thermalState),
       "thermalStateLevel": thermalStateLevel(processInfo.thermalState),
       "isLowPowerModeEnabled": processInfo.isLowPowerModeEnabled,
+      "memoryPressureState": memoryPressureStateName(level: memoryPressureLevel),
+      "memoryPressureLevel": memoryPressureLevel,
     ]
+  }
+
+  @objc
+  private func handleMemoryWarningNotification(_ notification: Notification) {
+    lastMemoryWarningAt = Date()
   }
 
   private func deviceModelIdentifier() -> String? {
@@ -91,6 +116,32 @@ import Darwin
       return 3
     @unknown default:
       return -1
+    }
+  }
+
+  private func memoryPressureLevel(now: Date) -> Int {
+    guard let lastMemoryWarningAt else {
+      return 0
+    }
+
+    let elapsed = now.timeIntervalSince(lastMemoryWarningAt)
+    if elapsed <= Self.criticalMemoryWarningWindow {
+      return 2
+    }
+    if elapsed <= Self.moderateMemoryWarningWindow {
+      return 1
+    }
+    return 0
+  }
+
+  private func memoryPressureStateName(level: Int) -> String {
+    switch level {
+    case 2...:
+      return "critical"
+    case 1:
+      return "moderate"
+    default:
+      return "normal"
     }
   }
 }

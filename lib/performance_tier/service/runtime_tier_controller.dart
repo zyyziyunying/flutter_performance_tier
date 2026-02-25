@@ -8,18 +8,26 @@ class RuntimeTierControllerConfig {
   const RuntimeTierControllerConfig({
     this.downgradeDebounce = const Duration(seconds: 5),
     this.recoveryCooldown = const Duration(seconds: 30),
+    this.upgradeDebounce = const Duration(seconds: 10),
     this.fairThermalStateLevel = 1,
     this.seriousThermalStateLevel = 2,
     this.criticalThermalStateLevel = 3,
+    this.moderateMemoryPressureLevel = 1,
+    this.criticalMemoryPressureLevel = 2,
   }) : assert(fairThermalStateLevel >= 0),
        assert(seriousThermalStateLevel >= fairThermalStateLevel),
-       assert(criticalThermalStateLevel >= seriousThermalStateLevel);
+       assert(criticalThermalStateLevel >= seriousThermalStateLevel),
+       assert(moderateMemoryPressureLevel >= 0),
+       assert(criticalMemoryPressureLevel >= moderateMemoryPressureLevel);
 
   final Duration downgradeDebounce;
   final Duration recoveryCooldown;
+  final Duration upgradeDebounce;
   final int fairThermalStateLevel;
   final int seriousThermalStateLevel;
   final int criticalThermalStateLevel;
+  final int moderateMemoryPressureLevel;
+  final int criticalMemoryPressureLevel;
 }
 
 @immutable
@@ -43,7 +51,9 @@ class RuntimeTierController {
   final DateTime Function() _now;
 
   DateTime? _pendingDowngradeAt;
+  DateTime? _pendingUpgradeAt;
   DateTime? _lastDowngradeSignalAt;
+  int? _pendingUpgradeTargetSteps;
   int? _activeDowngradeSteps;
   String? _activeSignalDescription;
 
@@ -70,7 +80,8 @@ class RuntimeTierController {
     required DateTime now,
     required TierLevel baseTier,
   }) {
-    if (_activeDowngradeSteps == null) {
+    final activeSteps = _activeDowngradeSteps;
+    if (activeSteps == null) {
       _pendingDowngradeAt ??= now;
       final pendingFor = now.difference(_pendingDowngradeAt!);
       if (pendingFor < config.downgradeDebounce) {
@@ -83,21 +94,48 @@ class RuntimeTierController {
           ],
         );
       }
+
+      _pendingDowngradeAt = null;
+      _clearPendingUpgrade();
+      _activeDowngradeSteps = signal.downgradeSteps;
+      _activeSignalDescription = signal.description;
+      _lastDowngradeSignalAt = now;
+
+      final downgradedTier = _downgrade(baseTier, _activeDowngradeSteps!);
+      return RuntimeTierAdjustment(
+        tier: downgradedTier,
+        reasons: <String>[
+          'Runtime downgrade active: ${signal.description}; '
+              'downgradeSteps=${_activeDowngradeSteps!}, '
+              'tier=${baseTier.name}->${downgradedTier.name}.',
+        ],
+      );
     }
 
-    _pendingDowngradeAt = null;
-    _activeDowngradeSteps = signal.downgradeSteps;
-    _activeSignalDescription = signal.description;
     _lastDowngradeSignalAt = now;
+    _pendingDowngradeAt = null;
 
-    final downgradedTier = _downgrade(baseTier, _activeDowngradeSteps!);
-    return RuntimeTierAdjustment(
-      tier: downgradedTier,
-      reasons: <String>[
-        'Runtime downgrade active: ${signal.description}; '
-            'downgradeSteps=${_activeDowngradeSteps!}, '
-            'tier=${baseTier.name}->${downgradedTier.name}.',
-      ],
+    if (signal.downgradeSteps >= activeSteps) {
+      _clearPendingUpgrade();
+      _activeDowngradeSteps = signal.downgradeSteps;
+      _activeSignalDescription = signal.description;
+
+      final downgradedTier = _downgrade(baseTier, _activeDowngradeSteps!);
+      return RuntimeTierAdjustment(
+        tier: downgradedTier,
+        reasons: <String>[
+          'Runtime downgrade active: ${signal.description}; '
+              'downgradeSteps=${_activeDowngradeSteps!}, '
+              'tier=${baseTier.name}->${downgradedTier.name}.',
+        ],
+      );
+    }
+
+    return _handleUpgradeThrottle(
+      now: now,
+      baseTier: baseTier,
+      targetDowngradeSteps: signal.downgradeSteps,
+      targetDescription: signal.description,
     );
   }
 
@@ -109,35 +147,101 @@ class RuntimeTierController {
 
     final activeSteps = _activeDowngradeSteps;
     if (activeSteps == null) {
+      _clearPendingUpgrade();
       return RuntimeTierAdjustment(tier: baseTier);
     }
 
-    final lastSignalAt = _lastDowngradeSignalAt;
-    if (lastSignalAt == null) {
-      _clearActiveDowngrade();
+    return _handleUpgradeThrottle(
+      now: now,
+      baseTier: baseTier,
+      targetDowngradeSteps: 0,
+      targetDescription: 'no runtime pressure',
+    );
+  }
+
+  RuntimeTierAdjustment _handleUpgradeThrottle({
+    required DateTime now,
+    required TierLevel baseTier,
+    required int targetDowngradeSteps,
+    required String targetDescription,
+  }) {
+    final activeSteps = _activeDowngradeSteps;
+    if (activeSteps == null || targetDowngradeSteps >= activeSteps) {
       return RuntimeTierAdjustment(tier: baseTier);
     }
 
-    final elapsed = now.difference(lastSignalAt);
-    if (elapsed < config.recoveryCooldown) {
+    if (targetDowngradeSteps == 0) {
+      final lastSignalAt = _lastDowngradeSignalAt;
+      if (lastSignalAt != null) {
+        if (_pendingUpgradeTargetSteps != targetDowngradeSteps) {
+          _pendingUpgradeTargetSteps = targetDowngradeSteps;
+          _pendingUpgradeAt = now;
+        }
+        _pendingUpgradeAt ??= now;
+
+        final elapsed = now.difference(lastSignalAt);
+        if (elapsed < config.recoveryCooldown) {
+          final downgradedTier = _downgrade(baseTier, activeSteps);
+          final remaining = config.recoveryCooldown - elapsed;
+          return RuntimeTierAdjustment(
+            tier: downgradedTier,
+            reasons: <String>[
+              'Runtime cooldown active: ${_activeSignalDescription ?? 'runtime pressure'}; '
+                  'cooldownRemainingMs=${remaining.inMilliseconds}, '
+                  'tier=${baseTier.name}->${downgradedTier.name}.',
+            ],
+          );
+        }
+      }
+    }
+
+    if (_pendingUpgradeTargetSteps != targetDowngradeSteps) {
+      _pendingUpgradeTargetSteps = targetDowngradeSteps;
+      _pendingUpgradeAt = now;
+    }
+    _pendingUpgradeAt ??= now;
+
+    final pendingFor = now.difference(_pendingUpgradeAt!);
+    if (pendingFor < config.upgradeDebounce) {
       final downgradedTier = _downgrade(baseTier, activeSteps);
-      final remaining = config.recoveryCooldown - elapsed;
+      final remaining = config.upgradeDebounce - pendingFor;
+      final reasonPrefix = targetDowngradeSteps == 0
+          ? 'Runtime recovery pending'
+          : 'Runtime upgrade pending';
       return RuntimeTierAdjustment(
         tier: downgradedTier,
         reasons: <String>[
-          'Runtime cooldown active: ${_activeSignalDescription ?? 'runtime pressure'}; '
-              'cooldownRemainingMs=${remaining.inMilliseconds}, '
+          '$reasonPrefix: ${_activeSignalDescription ?? 'runtime pressure'}; '
+              'upgradeDebounceRemainingMs=${remaining.inMilliseconds}, '
               'tier=${baseTier.name}->${downgradedTier.name}.',
         ],
       );
     }
 
-    final recoveredFrom = _activeSignalDescription ?? 'runtime pressure';
-    _clearActiveDowngrade();
+    final nextSteps = activeSteps - 1;
+    if (nextSteps <= 0) {
+      final recoveredFrom = _activeSignalDescription ?? 'runtime pressure';
+      _clearActiveDowngrade();
+      return RuntimeTierAdjustment(
+        tier: baseTier,
+        reasons: <String>[
+          'Runtime downgrade recovered after throttled upgrade: $recoveredFrom.',
+        ],
+      );
+    }
+
+    _activeDowngradeSteps = nextSteps;
+    if (targetDowngradeSteps > 0 && nextSteps <= targetDowngradeSteps) {
+      _activeSignalDescription = targetDescription;
+    }
+    _pendingUpgradeAt = now;
+    final downgradedTier = _downgrade(baseTier, nextSteps);
     return RuntimeTierAdjustment(
-      tier: baseTier,
+      tier: downgradedTier,
       reasons: <String>[
-        'Runtime downgrade recovered after cooldown: $recoveredFrom.',
+        'Runtime upgrade step applied: downgradeSteps=$activeSteps->$nextSteps, '
+            'targetDowngradeSteps=$targetDowngradeSteps, '
+            'tier=${baseTier.name}->${downgradedTier.name}.',
       ],
     );
   }
@@ -165,6 +269,21 @@ class RuntimeTierController {
         downgradeSteps = 1;
       }
       reasons.add('lowPowerMode=true');
+    }
+
+    final memoryPressureLevel = _resolveMemoryPressureLevel(signals);
+    if (memoryPressureLevel != null) {
+      if (memoryPressureLevel >= config.criticalMemoryPressureLevel) {
+        if (downgradeSteps < 2) {
+          downgradeSteps = 2;
+        }
+        reasons.add('memoryPressure=critical(level=$memoryPressureLevel)');
+      } else if (memoryPressureLevel >= config.moderateMemoryPressureLevel) {
+        if (downgradeSteps < 1) {
+          downgradeSteps = 1;
+        }
+        reasons.add('memoryPressure=moderate(level=$memoryPressureLevel)');
+      }
     }
 
     final description = reasons.isEmpty
@@ -199,6 +318,32 @@ class RuntimeTierController {
     };
   }
 
+  int? _resolveMemoryPressureLevel(DeviceSignals signals) {
+    final numericLevel = signals.memoryPressureLevel;
+    if (numericLevel != null) {
+      if (numericLevel < 0) {
+        return 0;
+      }
+      return numericLevel;
+    }
+
+    final memoryPressureState = signals.memoryPressureState
+        ?.trim()
+        .toLowerCase();
+    if (memoryPressureState == null || memoryPressureState.isEmpty) {
+      return null;
+    }
+
+    return switch (memoryPressureState) {
+      'critical' || 'severe' || 'high' => config.criticalMemoryPressureLevel,
+      'moderate' ||
+      'warning' ||
+      'elevated' => config.moderateMemoryPressureLevel,
+      'nominal' || 'normal' || 'none' || 'low' => 0,
+      _ => null,
+    };
+  }
+
   TierLevel _downgrade(TierLevel tier, int steps) {
     var index = tier.index - steps;
     if (index < 0) {
@@ -211,6 +356,12 @@ class RuntimeTierController {
     _activeDowngradeSteps = null;
     _activeSignalDescription = null;
     _lastDowngradeSignalAt = null;
+    _clearPendingUpgrade();
+  }
+
+  void _clearPendingUpgrade() {
+    _pendingUpgradeAt = null;
+    _pendingUpgradeTargetSteps = null;
   }
 }
 

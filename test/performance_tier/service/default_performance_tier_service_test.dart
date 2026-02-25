@@ -112,6 +112,68 @@ void main() {
     });
 
     test(
+      'applies runtime downgrade when memory pressure signal is critical',
+      () async {
+        final collector = _SequenceSignalCollector(<DeviceSignals>[
+          _androidSignals(
+            ramBytes: 12 * _bytesPerGb,
+            mediaPerformanceClass: 13,
+            sdkInt: 35,
+            thermalStateLevel: 0,
+            isLowPowerModeEnabled: false,
+            memoryPressureState: 'critical',
+            memoryPressureLevel: 2,
+          ),
+        ]);
+        final configProvider = _RecordingConfigProvider(const TierConfig());
+        final engine = _RecordingTierEngine(
+          decisionFactory:
+              ({required DeviceSignals signals, required TierConfig config}) {
+                return TierDecision(
+                  tier: TierLevel.t3Ultra,
+                  confidence: TierConfidence.high,
+                  deviceSignals: signals,
+                  reasons: const <String>['base tier selected by fake engine'],
+                );
+              },
+        );
+        const policy = PerformancePolicy(
+          animationLevel: 1,
+          mediaPreloadCount: 2,
+          decodeConcurrency: 1,
+          imageMaxSidePx: 1080,
+        );
+        final resolver = _RecordingPolicyResolver(policy);
+        final service = DefaultPerformanceTierService(
+          signalCollector: collector,
+          configProvider: configProvider,
+          engine: engine,
+          policyResolver: resolver,
+          runtimeSignalRefreshInterval: Duration.zero,
+          runtimeTierController: RuntimeTierController(
+            config: const RuntimeTierControllerConfig(
+              downgradeDebounce: Duration.zero,
+              recoveryCooldown: Duration(seconds: 30),
+            ),
+          ),
+        );
+        addTearDown(service.dispose);
+
+        await service.initialize();
+        final decision = await service.getCurrentDecision();
+
+        expect(decision.tier, TierLevel.t1Mid);
+        expect(
+          decision.reasons.any(
+            (reason) => reason.contains('memoryPressure=critical'),
+          ),
+          isTrue,
+        );
+        expect(resolver.resolveCalls, <TierLevel>[TierLevel.t1Mid]);
+      },
+    );
+
+    test(
       'refresh before initialize performs exactly one recomputation',
       () async {
         final collector = _SequenceSignalCollector(<DeviceSignals>[
@@ -458,6 +520,8 @@ DeviceSignals _androidSignals({
   String deviceModel = 'Pixel 8 Pro',
   int? thermalStateLevel,
   bool? isLowPowerModeEnabled,
+  String? memoryPressureState,
+  int? memoryPressureLevel,
 }) {
   return DeviceSignals(
     platform: 'android',
@@ -468,6 +532,8 @@ DeviceSignals _androidSignals({
     sdkInt: sdkInt,
     thermalStateLevel: thermalStateLevel,
     isLowPowerModeEnabled: isLowPowerModeEnabled,
+    memoryPressureState: memoryPressureState,
+    memoryPressureLevel: memoryPressureLevel,
     collectedAt: DateTime(2026),
   );
 }

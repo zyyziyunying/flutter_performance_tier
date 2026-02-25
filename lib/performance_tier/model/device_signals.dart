@@ -13,6 +13,8 @@ class DeviceSignals {
     this.thermalState,
     this.thermalStateLevel,
     this.isLowPowerModeEnabled,
+    this.memoryPressureState,
+    this.memoryPressureLevel,
   });
 
   final String platform;
@@ -24,6 +26,8 @@ class DeviceSignals {
   final String? thermalState;
   final int? thermalStateLevel;
   final bool? isLowPowerModeEnabled;
+  final String? memoryPressureState;
+  final int? memoryPressureLevel;
   final DateTime collectedAt;
 
   int? get totalRamMb => totalRamBytes == null ? null : totalRamBytes! ~/ _mb;
@@ -39,6 +43,8 @@ class DeviceSignals {
       'thermalState': thermalState,
       'thermalStateLevel': thermalStateLevel,
       'isLowPowerModeEnabled': isLowPowerModeEnabled,
+      'memoryPressureState': memoryPressureState,
+      'memoryPressureLevel': memoryPressureLevel,
       'collectedAt': collectedAt.toIso8601String(),
     };
   }
@@ -57,6 +63,8 @@ class DeviceSignals {
       thermalState: _asString(map['thermalState']),
       thermalStateLevel: _asInt(map['thermalStateLevel']),
       isLowPowerModeEnabled: _asBool(map['isLowPowerModeEnabled']),
+      memoryPressureState: _asString(map['memoryPressureState']),
+      memoryPressureLevel: _asInt(map['memoryPressureLevel']),
       collectedAt: collectedAt,
     );
   }

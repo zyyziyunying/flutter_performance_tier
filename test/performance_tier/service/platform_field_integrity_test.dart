@@ -37,6 +37,8 @@ void main() {
         'isLowRamDevice': false,
         'mediaPerformanceClass': 13,
         'sdkInt': 35,
+        'memoryPressureState': 'moderate',
+        'memoryPressureLevel': 1,
       }, collectedAt: collectedAt);
 
       expect(signals.platform, 'android');
@@ -49,6 +51,8 @@ void main() {
       expect(signals.thermalState, isNull);
       expect(signals.thermalStateLevel, isNull);
       expect(signals.isLowPowerModeEnabled, isNull);
+      expect(signals.memoryPressureState, 'moderate');
+      expect(signals.memoryPressureLevel, 1);
       expect(signals.toMap().keys, containsAll(_allSignalKeys));
     });
 
@@ -65,6 +69,8 @@ void main() {
           'thermalState': 'serious',
           'thermalStateLevel': 2,
           'isLowPowerModeEnabled': true,
+          'memoryPressureState': 'critical',
+          'memoryPressureLevel': 2,
         }, collectedAt: collectedAt);
 
         expect(signals.platform, 'ios');
@@ -76,6 +82,8 @@ void main() {
         expect(signals.thermalState, 'serious');
         expect(signals.thermalStateLevel, 2);
         expect(signals.isLowPowerModeEnabled, isTrue);
+        expect(signals.memoryPressureState, 'critical');
+        expect(signals.memoryPressureLevel, 2);
         expect(signals.toMap().keys, containsAll(_allSignalKeys));
       },
     );
@@ -97,6 +105,8 @@ const List<String> _androidExpectedKeys = <String>[
   'isLowRamDevice',
   'mediaPerformanceClass',
   'sdkInt',
+  'memoryPressureState',
+  'memoryPressureLevel',
 ];
 
 const List<String> _iosExpectedKeys = <String>[
@@ -108,6 +118,8 @@ const List<String> _iosExpectedKeys = <String>[
   'thermalState',
   'thermalStateLevel',
   'isLowPowerModeEnabled',
+  'memoryPressureState',
+  'memoryPressureLevel',
 ];
 
 const List<String> _allSignalKeys = <String>[
@@ -120,5 +132,7 @@ const List<String> _allSignalKeys = <String>[
   'thermalState',
   'thermalStateLevel',
   'isLowPowerModeEnabled',
+  'memoryPressureState',
+  'memoryPressureLevel',
   'collectedAt',
 ];
