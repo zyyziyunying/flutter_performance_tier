@@ -18,5 +18,6 @@ export 'policy/scenario_policy.dart';
 
 export 'service/default_performance_tier_service.dart';
 export 'service/device_signal_collector.dart';
+export 'service/frame_drop_signal_sampler.dart';
 export 'service/method_channel_device_signal_collector.dart';
 export 'service/runtime_tier_controller.dart';

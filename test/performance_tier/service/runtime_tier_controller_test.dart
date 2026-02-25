@@ -183,6 +183,65 @@ void main() {
         contains('memoryPressure=critical'),
       );
     });
+
+    test('ignores frame-drop signal when the feature switch is disabled', () {
+      final clock = _FakeClock(DateTime(2026, 2, 25, 12, 0, 0));
+      final controller = RuntimeTierController(
+        now: clock.now,
+        config: const RuntimeTierControllerConfig(
+          downgradeDebounce: Duration.zero,
+          recoveryCooldown: Duration.zero,
+          enableFrameDropSignal: false,
+        ),
+      );
+
+      final adjustment = controller.adjust(
+        baseTier: TierLevel.t3Ultra,
+        signals: _iosSignals(
+          collectedAt: clock.now(),
+          thermalStateLevel: 0,
+          frameDropState: 'critical',
+          frameDropLevel: 2,
+          frameDropRate: 0.4,
+        ),
+      );
+
+      expect(adjustment.tier, TierLevel.t3Ultra);
+      expect(adjustment.reasons, isEmpty);
+      expect(adjustment.observation.status, RuntimeTierStatus.inactive);
+    });
+
+    test('downgrades tier when frame-drop signal is critical', () {
+      final clock = _FakeClock(DateTime(2026, 2, 25, 12, 0, 0));
+      final controller = RuntimeTierController(
+        now: clock.now,
+        config: const RuntimeTierControllerConfig(
+          downgradeDebounce: Duration.zero,
+          recoveryCooldown: Duration.zero,
+          enableFrameDropSignal: true,
+        ),
+      );
+
+      final adjustment = controller.adjust(
+        baseTier: TierLevel.t3Ultra,
+        signals: _iosSignals(
+          collectedAt: clock.now(),
+          thermalStateLevel: 0,
+          frameDropState: 'critical',
+          frameDropLevel: 2,
+          frameDropRate: 0.35,
+        ),
+      );
+
+      expect(adjustment.tier, TierLevel.t1Mid);
+      expect(adjustment.reasons.single, contains('frameDrop=critical'));
+      expect(adjustment.reasons.single, contains('rate=35.0%'));
+      expect(adjustment.observation.status, RuntimeTierStatus.active);
+      expect(
+        adjustment.observation.triggerReason,
+        contains('frameDrop=critical'),
+      );
+    });
   });
 }
 
@@ -193,6 +252,11 @@ DeviceSignals _iosSignals({
   bool? isLowPowerModeEnabled,
   String? memoryPressureState,
   int? memoryPressureLevel,
+  String? frameDropState,
+  int? frameDropLevel,
+  double? frameDropRate,
+  int? frameDroppedCount,
+  int? frameSampledCount,
 }) {
   return DeviceSignals(
     platform: 'ios',
@@ -202,6 +266,11 @@ DeviceSignals _iosSignals({
     isLowPowerModeEnabled: isLowPowerModeEnabled,
     memoryPressureState: memoryPressureState,
     memoryPressureLevel: memoryPressureLevel,
+    frameDropState: frameDropState,
+    frameDropLevel: frameDropLevel,
+    frameDropRate: frameDropRate,
+    frameDroppedCount: frameDroppedCount,
+    frameSampledCount: frameSampledCount,
   );
 }
 

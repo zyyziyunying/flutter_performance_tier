@@ -1,7 +1,7 @@
 # 开发推进与下一步（基于 `DEVELOPMENT_PLAN.md`）
 
 > 评估时间：2026-02-25  
-> 本次更新：M3 已补齐“运行期可观测（状态 + 触发原因）”并完成 demo 面板透出。  
+> 本次更新：M3 已补齐“掉帧信号链路（可选开关）”并完成运行期降级联动 + demo 透出。  
 > 对齐范围：`DEVELOPMENT_PLAN.md` 第 1-157 行
 
 ## 1）已完成
@@ -19,6 +19,12 @@
   - `RuntimeTierController` 已输出 `pending/active/cooldown/recovery-pending/recovered`；
   - demo 面板已展示 `Runtime State`、`Runtime Trigger` 与内存压力字段；
   - 相关单测 / 组件测试已更新并通过。
+- **M3 掉帧信号链路（本次）**：
+  - 新增 `SchedulerFrameDropSignalSampler`，基于 `FrameTiming` 采集窗口掉帧率；
+  - 新增可选开关 `enableFrameDropSignal`（默认关闭）；
+  - `DeviceSignals` 已补齐 `frameDropState/Level/Rate` 与计数字段；
+  - 运行期降级规则已支持 `frameDrop` 信号参与降档决策；
+  - demo 面板已展示 `Frame Drop` 相关字段，测试覆盖已补齐。
 
 ## 2）当前正在做
 
@@ -26,26 +32,27 @@
 - **关键缺口 A（执行清单）**：**已清零**。
 - **关键缺口 B（规则工程化）**：**已清零**。
 - **关键缺口 C（测试验收）**：**已清零**（含运行期可观测新增断言）。
-- **关键缺口 D（运行期信号）**：**部分收敛**（热状态 / 低电量 / 内存压力已接入；掉帧信号待补齐）。
+- **关键缺口 D（运行期信号）**：**已清零**（热状态 / 低电量 / 内存压力 / 掉帧信号均已接入）。
 
 ## 3）下一步准备做（按优先级）
 
-1. **补掉帧信号链路**：补齐帧率波动采集、Dart 侧解析与运行期降级联动（先做可选开关）。
-2. **M3 文档持续对齐**：结合联调反馈微调阈值建议，补充“不同业务场景推荐参数”。
-3. **可观测性增强（可选）**：补充运行期状态停留时长/触发次数埋点口径，支持后续阈值回归。
+1. **M3 文档持续对齐**：补充掉帧信号参数说明、开关接入方式与建议阈值。
+2. **可观测性增强（可选）**：补充运行期状态停留时长/触发次数埋点口径，支持后续阈值回归。
+3. **阈值联调回归**：结合真实业务场景，校准掉帧窗口长度与 critical 判定阈值。
 
 ## 4）会话交接（下次可直接继续）
 
 - **本次关键改动文件**：
-  - `lib/performance_tier/model/runtime_tier_observation.dart`（新增运行期状态模型）
-  - `lib/performance_tier/model/tier_decision.dart`（新增 `runtimeObservation`）
-  - `lib/performance_tier/service/runtime_tier_controller.dart`（结构化状态与触发原因输出）
-  - `lib/performance_tier/service/default_performance_tier_service.dart`（透传运行期观测）
-  - `lib/main.dart`（demo 展示 Runtime State / Runtime Trigger + 内存压力字段）
-  - `test/performance_tier/service/runtime_tier_controller_test.dart`（状态机断言补齐）
-  - `test/performance_tier/service/default_performance_tier_service_test.dart`（服务侧透传断言补齐）
-  - `test/widget_test.dart`（demo 可视化字段断言补齐）
+  - `lib/performance_tier/service/frame_drop_signal_sampler.dart`（新增掉帧窗口采样器）
+  - `lib/performance_tier/model/device_signals.dart`（新增 frameDrop 字段与解析）
+  - `lib/performance_tier/service/default_performance_tier_service.dart`（掉帧采样注入决策链路）
+  - `lib/performance_tier/service/runtime_tier_controller.dart`（新增 frameDrop 运行期降级规则）
+  - `lib/main.dart`（demo 展示 Frame Drop 字段）
+  - `test/performance_tier/service/runtime_tier_controller_test.dart`（frameDrop 开关与降级断言）
+  - `test/performance_tier/service/default_performance_tier_service_test.dart`（服务编排 frameDrop 断言）
+  - `test/performance_tier/service/platform_field_integrity_test.dart`（frameDrop 解析契约断言）
+  - `test/widget_test.dart`（demo 字段可见性断言）
 - **已验证命令**：
   - `flutter analyze`
-  - `flutter test`（32 tests passed；初始化基线最新观测 `p95≈0.41ms`，满足 `<=300ms` 目标）
-- **下次会话建议起手任务**：直接从“掉帧信号链路（可选开关）”开始实现。
+  - `flutter test`（35 tests passed；初始化基线最新观测 `p95≈0.40ms`，满足 `<=300ms` 目标）
+- **下次会话建议起手任务**：进入“掉帧阈值联调 + M3 文档参数建议”收尾任务。

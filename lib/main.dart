@@ -265,6 +265,22 @@ class _PerformanceTierDemoPageState extends State<PerformanceTierDemoPage> {
               'Memory Pressure Level',
               '${signals.memoryPressureLevel ?? '-'}',
             ),
+            _buildValueRow('Frame Drop State', signals.frameDropState ?? '-'),
+            _buildValueRow(
+              'Frame Drop Level',
+              '${signals.frameDropLevel ?? '-'}',
+            ),
+            _buildValueRow(
+              'Frame Drop Rate',
+              _formatFrameDropRate(signals.frameDropRate),
+            ),
+            _buildValueRow(
+              'Frame Drop Count',
+              _formatFrameDropCount(
+                dropped: signals.frameDroppedCount,
+                sampled: signals.frameSampledCount,
+              ),
+            ),
             _buildValueRow(
               'Runtime State',
               _formatRuntimeState(runtimeObservation.status),
@@ -483,6 +499,24 @@ class _PerformanceTierDemoPageState extends State<PerformanceTierDemoPage> {
     const unit = 1024 * 1024 * 1024;
     final gb = bytes / unit;
     return '${gb.toStringAsFixed(2)} GB';
+  }
+
+  static String _formatFrameDropRate(double? rate) {
+    if (rate == null) {
+      return '-';
+    }
+    final normalized = rate < 0 ? 0.0 : (rate > 1 ? 1.0 : rate);
+    return '${(normalized * 100).toStringAsFixed(1)}%';
+  }
+
+  static String _formatFrameDropCount({
+    required int? dropped,
+    required int? sampled,
+  }) {
+    if (dropped == null && sampled == null) {
+      return '-';
+    }
+    return '${dropped ?? '-'} / ${sampled ?? '-'}';
   }
 
   static String _formatTime(DateTime value) {

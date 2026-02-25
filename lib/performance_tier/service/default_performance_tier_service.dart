@@ -10,6 +10,7 @@ import '../model/tier_level.dart';
 import '../performance_tier_service.dart';
 import '../policy/policy_resolver.dart';
 import 'device_signal_collector.dart';
+import 'frame_drop_signal_sampler.dart';
 import 'method_channel_device_signal_collector.dart';
 import 'runtime_tier_controller.dart';
 
@@ -20,14 +21,26 @@ class DefaultPerformanceTierService implements PerformanceTierService {
     PolicyResolver? policyResolver,
     ConfigProvider? configProvider,
     RuntimeTierController? runtimeTierController,
+    FrameDropSignalSampler? frameDropSignalSampler,
     Duration runtimeSignalRefreshInterval = const Duration(seconds: 15),
+    bool enableFrameDropSignal = false,
   }) : _signalCollector =
            signalCollector ?? MethodChannelDeviceSignalCollector(),
        _engine = engine ?? const RuleBasedTierEngine(),
        _policyResolver = policyResolver ?? const DefaultPolicyResolver(),
        _configProvider = configProvider ?? const DefaultConfigProvider(),
        _runtimeTierController =
-           runtimeTierController ?? RuntimeTierController(),
+           runtimeTierController ??
+           RuntimeTierController(
+             config: RuntimeTierControllerConfig(
+               enableFrameDropSignal: enableFrameDropSignal,
+             ),
+           ),
+       _frameDropSignalSampler =
+           frameDropSignalSampler ??
+           (enableFrameDropSignal
+               ? SchedulerFrameDropSignalSampler()
+               : const DisabledFrameDropSignalSampler()),
        _runtimeSignalRefreshInterval = runtimeSignalRefreshInterval;
 
   final DeviceSignalCollector _signalCollector;
@@ -35,6 +48,7 @@ class DefaultPerformanceTierService implements PerformanceTierService {
   final PolicyResolver _policyResolver;
   final ConfigProvider _configProvider;
   final RuntimeTierController _runtimeTierController;
+  final FrameDropSignalSampler _frameDropSignalSampler;
   final Duration _runtimeSignalRefreshInterval;
   final StreamController<TierDecision> _decisionController =
       StreamController<TierDecision>.broadcast();
@@ -52,6 +66,7 @@ class DefaultPerformanceTierService implements PerformanceTierService {
     }
 
     _initialized = true;
+    _frameDropSignalSampler.start();
     _startRuntimeSignalPolling();
     await _recomputeDecisionSafely();
   }
@@ -92,6 +107,7 @@ class DefaultPerformanceTierService implements PerformanceTierService {
     }
     _disposed = true;
     _runtimeSignalTimer?.cancel();
+    _frameDropSignalSampler.stop();
     await _decisionController.close();
   }
 
@@ -137,6 +153,7 @@ class DefaultPerformanceTierService implements PerformanceTierService {
       }
       return;
     }
+    signals = _mergeFrameDropSignals(signals);
 
     final baseDecision = _engine.evaluate(signals: signals, config: config);
     final runtimeAdjustment = _runtimeTierController.adjust(
@@ -161,6 +178,20 @@ class DefaultPerformanceTierService implements PerformanceTierService {
     if (!_disposed && !_decisionController.isClosed) {
       _decisionController.add(decision);
     }
+  }
+
+  DeviceSignals _mergeFrameDropSignals(DeviceSignals signals) {
+    final snapshot = _frameDropSignalSampler.currentSnapshot();
+    if (!snapshot.hasSignal) {
+      return signals;
+    }
+    return signals.copyWith(
+      frameDropState: snapshot.state,
+      frameDropLevel: snapshot.level,
+      frameDropRate: snapshot.dropRate,
+      frameDroppedCount: snapshot.droppedFrameCount,
+      frameSampledCount: snapshot.sampledFrameCount,
+    );
   }
 
   TierDecision _buildFallbackDecision(Object error) {

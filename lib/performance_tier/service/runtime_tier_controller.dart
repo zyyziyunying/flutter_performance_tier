@@ -15,11 +15,16 @@ class RuntimeTierControllerConfig {
     this.criticalThermalStateLevel = 3,
     this.moderateMemoryPressureLevel = 1,
     this.criticalMemoryPressureLevel = 2,
+    this.enableFrameDropSignal = false,
+    this.moderateFrameDropLevel = 1,
+    this.criticalFrameDropLevel = 2,
   }) : assert(fairThermalStateLevel >= 0),
        assert(seriousThermalStateLevel >= fairThermalStateLevel),
        assert(criticalThermalStateLevel >= seriousThermalStateLevel),
        assert(moderateMemoryPressureLevel >= 0),
-       assert(criticalMemoryPressureLevel >= moderateMemoryPressureLevel);
+       assert(criticalMemoryPressureLevel >= moderateMemoryPressureLevel),
+       assert(moderateFrameDropLevel >= 0),
+       assert(criticalFrameDropLevel >= moderateFrameDropLevel);
 
   final Duration downgradeDebounce;
   final Duration recoveryCooldown;
@@ -29,6 +34,9 @@ class RuntimeTierControllerConfig {
   final int criticalThermalStateLevel;
   final int moderateMemoryPressureLevel;
   final int criticalMemoryPressureLevel;
+  final bool enableFrameDropSignal;
+  final int moderateFrameDropLevel;
+  final int criticalFrameDropLevel;
 }
 
 @immutable
@@ -335,6 +343,35 @@ class RuntimeTierController {
       }
     }
 
+    if (config.enableFrameDropSignal) {
+      final frameDropLevel = _resolveFrameDropLevel(signals);
+      if (frameDropLevel != null) {
+        if (frameDropLevel >= config.criticalFrameDropLevel) {
+          if (downgradeSteps < 2) {
+            downgradeSteps = 2;
+          }
+          reasons.add(
+            _frameDropReason(
+              level: frameDropLevel,
+              severity: 'critical',
+              rate: signals.frameDropRate,
+            ),
+          );
+        } else if (frameDropLevel >= config.moderateFrameDropLevel) {
+          if (downgradeSteps < 1) {
+            downgradeSteps = 1;
+          }
+          reasons.add(
+            _frameDropReason(
+              level: frameDropLevel,
+              severity: 'moderate',
+              rate: signals.frameDropRate,
+            ),
+          );
+        }
+      }
+    }
+
     final description = reasons.isEmpty
         ? 'runtime pressure'
         : reasons.join(', ');
@@ -391,6 +428,41 @@ class RuntimeTierController {
       'nominal' || 'normal' || 'none' || 'low' => 0,
       _ => null,
     };
+  }
+
+  int? _resolveFrameDropLevel(DeviceSignals signals) {
+    final numericLevel = signals.frameDropLevel;
+    if (numericLevel != null) {
+      if (numericLevel < 0) {
+        return 0;
+      }
+      return numericLevel;
+    }
+
+    final frameDropState = signals.frameDropState?.trim().toLowerCase();
+    if (frameDropState == null || frameDropState.isEmpty) {
+      return null;
+    }
+
+    return switch (frameDropState) {
+      'critical' || 'severe' || 'high' => config.criticalFrameDropLevel,
+      'moderate' || 'warning' || 'elevated' => config.moderateFrameDropLevel,
+      'normal' || 'nominal' || 'none' || 'low' => 0,
+      _ => null,
+    };
+  }
+
+  String _frameDropReason({
+    required int level,
+    required String severity,
+    required double? rate,
+  }) {
+    if (rate == null) {
+      return 'frameDrop=$severity(level=$level)';
+    }
+    final clampedRate = rate < 0 ? 0.0 : (rate > 1 ? 1.0 : rate);
+    final percent = (clampedRate * 100).toStringAsFixed(1);
+    return 'frameDrop=$severity(level=$level,rate=$percent%)';
   }
 
   TierLevel _downgrade(TierLevel tier, int steps) {

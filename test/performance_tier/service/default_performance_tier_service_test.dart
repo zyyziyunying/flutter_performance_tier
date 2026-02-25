@@ -184,6 +184,83 @@ void main() {
     );
 
     test(
+      'applies runtime downgrade when frame-drop signal is critical',
+      () async {
+        final collector = _SequenceSignalCollector(<DeviceSignals>[
+          _androidSignals(
+            ramBytes: 12 * _bytesPerGb,
+            mediaPerformanceClass: 13,
+            sdkInt: 35,
+            thermalStateLevel: 0,
+            isLowPowerModeEnabled: false,
+          ),
+        ]);
+        final frameDropSampler =
+            _SequenceFrameDropSignalSampler(<FrameDropSignalSnapshot>[
+              const FrameDropSignalSnapshot(
+                state: 'critical',
+                level: 2,
+                dropRate: 0.35,
+                droppedFrameCount: 22,
+                sampledFrameCount: 60,
+              ),
+            ]);
+        final configProvider = _RecordingConfigProvider(const TierConfig());
+        final engine = _RecordingTierEngine(
+          decisionFactory:
+              ({required DeviceSignals signals, required TierConfig config}) {
+                return TierDecision(
+                  tier: TierLevel.t3Ultra,
+                  confidence: TierConfidence.high,
+                  deviceSignals: signals,
+                  reasons: const <String>['base tier selected by fake engine'],
+                );
+              },
+        );
+        const policy = PerformancePolicy(
+          animationLevel: 1,
+          mediaPreloadCount: 2,
+          decodeConcurrency: 1,
+          imageMaxSidePx: 1080,
+        );
+        final resolver = _RecordingPolicyResolver(policy);
+        final service = DefaultPerformanceTierService(
+          signalCollector: collector,
+          frameDropSignalSampler: frameDropSampler,
+          enableFrameDropSignal: true,
+          configProvider: configProvider,
+          engine: engine,
+          policyResolver: resolver,
+          runtimeSignalRefreshInterval: Duration.zero,
+          runtimeTierController: RuntimeTierController(
+            config: const RuntimeTierControllerConfig(
+              downgradeDebounce: Duration.zero,
+              recoveryCooldown: Duration(seconds: 30),
+              enableFrameDropSignal: true,
+            ),
+          ),
+        );
+        addTearDown(service.dispose);
+
+        await service.initialize();
+        final decision = await service.getCurrentDecision();
+
+        expect(decision.tier, TierLevel.t1Mid);
+        expect(decision.deviceSignals.frameDropState, 'critical');
+        expect(decision.deviceSignals.frameDropLevel, 2);
+        expect(decision.deviceSignals.frameDropRate, 0.35);
+        expect(
+          decision.reasons.any(
+            (reason) => reason.contains('frameDrop=critical'),
+          ),
+          isTrue,
+        );
+        expect(frameDropSampler.startCallCount, 1);
+        expect(resolver.resolveCalls, <TierLevel>[TierLevel.t1Mid]);
+      },
+    );
+
+    test(
       'refresh before initialize performs exactly one recomputation',
       () async {
         final collector = _SequenceSignalCollector(<DeviceSignals>[
@@ -532,6 +609,11 @@ DeviceSignals _androidSignals({
   bool? isLowPowerModeEnabled,
   String? memoryPressureState,
   int? memoryPressureLevel,
+  String? frameDropState,
+  int? frameDropLevel,
+  double? frameDropRate,
+  int? frameDroppedCount,
+  int? frameSampledCount,
 }) {
   return DeviceSignals(
     platform: 'android',
@@ -544,8 +626,45 @@ DeviceSignals _androidSignals({
     isLowPowerModeEnabled: isLowPowerModeEnabled,
     memoryPressureState: memoryPressureState,
     memoryPressureLevel: memoryPressureLevel,
+    frameDropState: frameDropState,
+    frameDropLevel: frameDropLevel,
+    frameDropRate: frameDropRate,
+    frameDroppedCount: frameDroppedCount,
+    frameSampledCount: frameSampledCount,
     collectedAt: DateTime(2026),
   );
+}
+
+class _SequenceFrameDropSignalSampler implements FrameDropSignalSampler {
+  _SequenceFrameDropSignalSampler(List<FrameDropSignalSnapshot> snapshots)
+    : _snapshots = List<FrameDropSignalSnapshot>.from(snapshots);
+
+  final List<FrameDropSignalSnapshot> _snapshots;
+  int startCallCount = 0;
+  int stopCallCount = 0;
+  int currentSnapshotCallCount = 0;
+
+  @override
+  FrameDropSignalSnapshot currentSnapshot() {
+    currentSnapshotCallCount += 1;
+    if (_snapshots.isEmpty) {
+      return const FrameDropSignalSnapshot();
+    }
+    if (_snapshots.length == 1) {
+      return _snapshots.first;
+    }
+    return _snapshots.removeAt(0);
+  }
+
+  @override
+  void start() {
+    startCallCount += 1;
+  }
+
+  @override
+  void stop() {
+    stopCallCount += 1;
+  }
 }
 
 int _percentile(List<int> sortedValues, {required double percentile}) {

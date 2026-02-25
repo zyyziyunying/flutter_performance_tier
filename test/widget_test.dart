@@ -18,6 +18,8 @@ void main() {
       160,
       scrollable: find.byType(Scrollable).first,
     );
+    expect(find.text('Frame Drop State'), findsOneWidget);
+    expect(find.text('Frame Drop Rate'), findsOneWidget);
     expect(find.text('Runtime State'), findsOneWidget);
     expect(find.text('Runtime Trigger'), findsOneWidget);
     expect(find.text('Event Log'), findsOneWidget);

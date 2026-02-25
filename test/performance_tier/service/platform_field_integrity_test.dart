@@ -39,6 +39,11 @@ void main() {
         'sdkInt': 35,
         'memoryPressureState': 'moderate',
         'memoryPressureLevel': 1,
+        'frameDropState': 'moderate',
+        'frameDropLevel': 1,
+        'frameDropRate': 0.2,
+        'frameDroppedCount': 12,
+        'frameSampledCount': 60,
       }, collectedAt: collectedAt);
 
       expect(signals.platform, 'android');
@@ -53,6 +58,11 @@ void main() {
       expect(signals.isLowPowerModeEnabled, isNull);
       expect(signals.memoryPressureState, 'moderate');
       expect(signals.memoryPressureLevel, 1);
+      expect(signals.frameDropState, 'moderate');
+      expect(signals.frameDropLevel, 1);
+      expect(signals.frameDropRate, 0.2);
+      expect(signals.frameDroppedCount, 12);
+      expect(signals.frameSampledCount, 60);
       expect(signals.toMap().keys, containsAll(_allSignalKeys));
     });
 
@@ -71,6 +81,11 @@ void main() {
           'isLowPowerModeEnabled': true,
           'memoryPressureState': 'critical',
           'memoryPressureLevel': 2,
+          'frameDropState': 'critical',
+          'frameDropLevel': '2',
+          'frameDropRate': '0.35',
+          'frameDroppedCount': '21',
+          'frameSampledCount': 60,
         }, collectedAt: collectedAt);
 
         expect(signals.platform, 'ios');
@@ -84,6 +99,11 @@ void main() {
         expect(signals.isLowPowerModeEnabled, isTrue);
         expect(signals.memoryPressureState, 'critical');
         expect(signals.memoryPressureLevel, 2);
+        expect(signals.frameDropState, 'critical');
+        expect(signals.frameDropLevel, 2);
+        expect(signals.frameDropRate, 0.35);
+        expect(signals.frameDroppedCount, 21);
+        expect(signals.frameSampledCount, 60);
         expect(signals.toMap().keys, containsAll(_allSignalKeys));
       },
     );
@@ -134,5 +154,10 @@ const List<String> _allSignalKeys = <String>[
   'isLowPowerModeEnabled',
   'memoryPressureState',
   'memoryPressureLevel',
+  'frameDropState',
+  'frameDropLevel',
+  'frameDropRate',
+  'frameDroppedCount',
+  'frameSampledCount',
   'collectedAt',
 ];
