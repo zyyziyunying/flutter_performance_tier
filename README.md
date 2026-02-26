@@ -41,25 +41,35 @@ final frameDropState = decision.deviceSignals.frameDropState; // normal/moderate
 final frameDropRate = decision.deviceSignals.frameDropRate; // 0.0 ~ 1.0
 ```
 
-## 可调参数示例（掉帧阈值）
+## 掉帧阈值联调模板（M3 收尾）
 
-可以通过自定义采样器与运行期控制器参数调优：
+建议从以下模板起步，再按业务场景微调：
+
+- `Balanced（默认）`：`window=30s`、`budget=16.667ms`、`rate=0.12/0.25`、`count=8/20`
+- `Feed/Scroll`：`window=20s`、`budget=16.667ms`、`rate=0.10/0.20`、`count=18/45`
+- `High Refresh（90/120Hz）`：`window=20s`、`budget=11.111ms/8.333ms`、`rate=0.08/0.18`、`count=24/60`
+
+`Feed/Scroll` 参考接入示例：
 
 ```dart
 final service = DefaultPerformanceTierService(
   enableFrameDropSignal: true,
+  runtimeSignalRefreshInterval: const Duration(seconds: 10),
   frameDropSignalSampler: SchedulerFrameDropSignalSampler(
-    sampleWindow: const Duration(seconds: 30),
+    sampleWindow: const Duration(seconds: 20),
     targetFrameBudget: const Duration(microseconds: 16667),
-    moderateDropRate: 0.12,
-    criticalDropRate: 0.25,
-    moderateDroppedFrameCount: 8,
-    criticalDroppedFrameCount: 20,
-    minSampledFrameCount: 60,
+    minSampledFrameCount: 90,
+    moderateDropRate: 0.10,
+    criticalDropRate: 0.20,
+    moderateDroppedFrameCount: 18,
+    criticalDroppedFrameCount: 45,
   ),
   runtimeTierController: RuntimeTierController(
     config: const RuntimeTierControllerConfig(
       enableFrameDropSignal: true,
+      downgradeDebounce: Duration(seconds: 3),
+      recoveryCooldown: Duration(seconds: 35),
+      upgradeDebounce: Duration(seconds: 12),
       moderateFrameDropLevel: 1,
       criticalFrameDropLevel: 2,
     ),

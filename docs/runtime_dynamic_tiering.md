@@ -1,6 +1,6 @@
 # 运行期动态降级策略（M3）
 
-> 更新时间：2026-02-25  
+> 更新时间：2026-02-26  
 > 适用实现：`RuntimeTierController` + `DefaultPerformanceTierService` 当前主干实现
 
 ## 1. 目标
@@ -36,6 +36,7 @@
     - `minSampledFrameCount=60`
     - `moderateDropRate=0.12` / `criticalDropRate=0.25`
     - `moderateDroppedFrameCount=8` / `criticalDroppedFrameCount=20`
+  - 判定语义：`dropRate` 或 `droppedFrameCount` 任一达到阈值即触发对应等级。
   - 通过 `DefaultPerformanceTierService(enableFrameDropSignal: true)` 启用。
 
 ## 3. 降级规则（当前版本）
@@ -101,7 +102,54 @@ Tier 变化采用“按步数降档”，最低不低于 `t0Low`。
   - `enableFrameDropSignal=false`（默认）：不采样，不参与降级。
   - `enableFrameDropSignal=true`：启动采样器，且默认 `RuntimeTierController` 打开 frameDrop 规则。
 
-## 6. 可观测性与测试
+## 6. 掉帧阈值联调建议（M3 收尾）
+
+### 6.1 联调流程建议
+
+1. 先固定场景（首屏动画、重列表、视频列表）并跑 3 轮各 `>=10min`，采集 `PERF_TIER_LOG`。
+2. 先调采样参数（`sampleWindow`、`targetFrameBudget`、drop 阈值），后调时序参数（防抖/冷却）。
+3. 每次仅改 1 组参数，至少观察 1 个完整冷却周期（`recoveryCooldown + upgradeDebounce`）。
+4. 命中率偏高先放宽 `moderateDroppedFrameCount/criticalDroppedFrameCount`，命中延迟偏高再缩短 `sampleWindow`。
+
+### 6.2 参数模板（建议起点）
+
+| 模板 | 适用场景 | 采样参数建议 | 运行期参数建议 |
+| --- | --- | --- | --- |
+| **Balanced（默认）** | 通用业务、先上线再观察 | `window=30s`, `budget=16.667ms`, `minSample=60`, `rate=0.12/0.25`, `count=8/20` | `polling=15s`, `debounce=5s`, `cooldown=30s`, `upgradeDebounce=10s` |
+| **Feed/Scroll（建议联调首选）** | 长列表/瀑布流，误判偏高时 | `window=20s`, `budget=16.667ms`, `minSample=90`, `rate=0.10/0.20`, `count=18/45` | `polling=10s`, `debounce=3s`, `cooldown=35s`, `upgradeDebounce=12s` |
+| **High Refresh（90/120Hz）** | 高频刷新设备或动画密集页面 | `window=20s`, `budget=11.111ms(90Hz)` / `8.333ms(120Hz)`, `minSample=120`, `rate=0.08/0.18`, `count=24/60` | `polling=10s`, `debounce=3s`, `cooldown=40s`, `upgradeDebounce=15s` |
+
+> 说明：`rate=a/b` 表示 `moderateDropRate=a`、`criticalDropRate=b`；`count=x/y` 表示 `moderateDroppedFrameCount=x`、`criticalDroppedFrameCount=y`。
+
+### 6.3 接入示例（Feed/Scroll 模板）
+
+```dart
+final service = DefaultPerformanceTierService(
+  enableFrameDropSignal: true,
+  runtimeSignalRefreshInterval: const Duration(seconds: 10),
+  frameDropSignalSampler: SchedulerFrameDropSignalSampler(
+    sampleWindow: const Duration(seconds: 20),
+    targetFrameBudget: const Duration(microseconds: 16667),
+    minSampledFrameCount: 90,
+    moderateDropRate: 0.10,
+    criticalDropRate: 0.20,
+    moderateDroppedFrameCount: 18,
+    criticalDroppedFrameCount: 45,
+  ),
+  runtimeTierController: RuntimeTierController(
+    config: const RuntimeTierControllerConfig(
+      enableFrameDropSignal: true,
+      downgradeDebounce: Duration(seconds: 3),
+      recoveryCooldown: Duration(seconds: 35),
+      upgradeDebounce: Duration(seconds: 12),
+      moderateFrameDropLevel: 1,
+      criticalFrameDropLevel: 2,
+    ),
+  ),
+);
+```
+
+## 7. 可观测性与测试
 
 当前可观测输出：
 
@@ -112,7 +160,7 @@ Tier 变化采用“按步数降档”，最低不低于 `t0Low`。
   - `frameDropState` / `frameDropLevel` / `frameDropRate`
   - `frameDroppedCount` / `frameSampledCount`
 - `TierDecision.reasons`（文本）仍保留详细链路信息，便于排障。
-- demo 面板已展示 `Runtime State`、`Runtime Trigger`、内存压力与 `Frame Drop` 字段。
+- demo 通过 `PERF_TIER_LOG` 输出 JSON Line；可直接检索 `decision.recompute.completed` 观察触发与恢复节奏。
 
 已覆盖测试：
 
@@ -131,9 +179,9 @@ Tier 变化采用“按步数降档”，最低不低于 `t0Low`。
   - Android / iOS 内存压力字段契约与 Dart 解析完整性
   - `frameDrop*` 字段解析完整性
 - `test/widget_test.dart`
-  - demo 运行期可观测字段可见性（含 Frame Drop）
+  - demo 结构化诊断页关键元素冒烟断言
 
-## 7. 后续建议
+## 8. 后续建议
 
-- 累计运行期触发次数与停留时长埋点，为阈值调优提供数据依据。
-- 结合真实业务场景回放，校准 `sampleWindow` 与 drop rate 阈值，降低误判率。
+- 增加“状态停留时长 / 触发次数”埋点口径，形成阈值回归基线。
+- 在 M4 远程配置阶段，把联调模板参数下沉到可灰度下发配置。

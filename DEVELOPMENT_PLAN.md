@@ -14,7 +14,6 @@
 - 平台：Android、iOS（Flutter 插件 + Dart API）。
 - 能力：设备画像采集、静态分级、运行期状态更新、策略下发。
 - 输出：统一 `PerformanceProfile` 与 `TierDecision`。
-- 集成：提供 demo 页面展示分级结果与策略命中。
 
 ### 2.2 非目标（本期不做）
 
