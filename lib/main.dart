@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -48,18 +47,8 @@ class _PerformanceTierDemoPageState extends State<PerformanceTierDemoPage> {
       );
   late final DefaultPerformanceTierService _service =
       DefaultPerformanceTierService(logger: _logger);
-  late final RustAdapter _rustAdapter = RustAdapter();
-  late final BytesFirstNetworkClient _networkClient = BytesFirstNetworkClient(
-    gateway: NetworkGateway(
-      routingPolicy: const RoutingPolicy(),
-      featureFlag: const NetFeatureFlag(
-        enableRustChannel: true,
-        enableFallback: true,
-      ),
-      dioAdapter: DioAdapter(),
-      rustAdapter: _rustAdapter,
-    ),
-  );
+  late final BytesFirstNetworkClient _networkClient =
+      BytesFirstNetworkClient.standard();
 
   StreamSubscription<TierDecision>? _subscription;
   TierDecision? _decision;
@@ -216,24 +205,24 @@ class _PerformanceTierDemoPageState extends State<PerformanceTierDemoPage> {
       final idempotencyKey =
           'performance-tier-upload-${DateTime.now().microsecondsSinceEpoch}';
 
-      final response = await _networkClient.requestRaw(
-        NetRequest(
-          method: 'POST',
-          url: _rustUploadUrl,
-          headers: <String, String>{
-            'content-type': 'multipart/form-data; boundary=${body.boundary}',
-            'content-length': body.bytes.length.toString(),
-            'idempotency-key': idempotencyKey,
-          },
-          body: body.bytes,
+      final response = await _networkClient.request(
+        method: NetHttpMethod.post,
+        url: _rustUploadUrl,
+        headers: _buildUploadHeaders(
+          body: body,
+          idempotencyKey: idempotencyKey,
         ),
+        body: body.bytes,
       );
 
       final responseText = _formatResponsePreview(response.bodyBytes);
       final routeReason = response.routeReason ?? '-';
       final fallbackSuffix = response.fromFallback ? ' (fallback)' : '';
-      final initSuffix = initWarning == null ? '' : '\ninitWarning=$initWarning';
-      final result = 'status=${response.statusCode}, '
+      final initSuffix = initWarning == null
+          ? ''
+          : '\ninitWarning=$initWarning';
+      final result =
+          'status=${response.statusCode}, '
           'channel=${response.channel.name}$fallbackSuffix, '
           'route=$routeReason, '
           'costMs=${response.costMs}, '
@@ -271,7 +260,11 @@ class _PerformanceTierDemoPageState extends State<PerformanceTierDemoPage> {
     if (_rustEngineInitialized) {
       return;
     }
-    await _rustAdapter.initializeEngine(
+    final rustAdapter = _networkClient.rustAdapter;
+    if (rustAdapter == null) {
+      throw StateError('RustAdapter not available on current network client.');
+    }
+    await rustAdapter.initializeEngine(
       options: const RustEngineInitOptions(
         baseUrl: 'http://47.110.52.208:7777',
       ),
@@ -285,7 +278,8 @@ class _PerformanceTierDemoPageState extends State<PerformanceTierDemoPage> {
     required String fileName,
     required String fileContent,
   }) {
-    final boundary = '----flutter-rust-net-${DateTime.now().microsecondsSinceEpoch}';
+    final boundary =
+        '----flutter-rust-net-${DateTime.now().microsecondsSinceEpoch}';
     final content = StringBuffer()
       ..writeln('--$boundary')
       ..writeln(
@@ -300,6 +294,19 @@ class _PerformanceTierDemoPageState extends State<PerformanceTierDemoPage> {
       boundary: boundary,
       bytes: Uint8List.fromList(utf8.encode(content.toString())),
     );
+  }
+
+  Map<String, String> _buildUploadHeaders({
+    required _MultipartPayload body,
+    required String idempotencyKey,
+  }) {
+    return <String, String>{
+      NetHeaderName.contentType.wireName:
+          'multipart/form-data; boundary=${body.boundary}',
+      NetHeaderName.contentLength.wireName: body.bytes.length.toString(),
+      NetHeaderName.accept.wireName: 'application/json, text/plain, */*',
+      NetHeaderName.idempotencyKey.wireName: idempotencyKey,
+    };
   }
 
   String _formatResponsePreview(List<int>? bytes) {
