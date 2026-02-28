@@ -1,9 +1,9 @@
 import 'dart:async';
 import 'dart:convert';
 
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_rust_net/flutter_rust_net.dart';
 
 import 'performance_tier/performance_tier.dart';
 
@@ -36,7 +36,7 @@ class PerformanceTierDemoPage extends StatefulWidget {
 }
 
 class _PerformanceTierDemoPageState extends State<PerformanceTierDemoPage> {
-  static const String _rustUploadUrl = 'http://47.110.52.208:7777/upload';
+  static const String _uploadUrl = 'http://47.110.52.208:7777/upload';
 
   final List<String> _structuredLogs = <String>[];
 
@@ -47,19 +47,17 @@ class _PerformanceTierDemoPageState extends State<PerformanceTierDemoPage> {
       );
   late final DefaultPerformanceTierService _service =
       DefaultPerformanceTierService(logger: _logger);
-  late final BytesFirstNetworkClient _networkClient =
-      BytesFirstNetworkClient.standard();
+  late final Dio _dio = Dio();
 
   StreamSubscription<TierDecision>? _subscription;
   TierDecision? _decision;
   String? _error;
-  String? _rustUploadError;
-  String _rustUploadResult = 'Not run yet.';
+  String? _uploadError;
+  String _uploadResult = 'Not run yet.';
   bool _initializing = true;
   bool _refreshing = false;
-  bool _runningRustUpload = false;
+  bool _runningUpload = false;
   bool _allowUiUpdates = true;
-  bool _rustEngineInitialized = false;
 
   @override
   void initState() {
@@ -84,6 +82,7 @@ class _PerformanceTierDemoPageState extends State<PerformanceTierDemoPage> {
     _allowUiUpdates = false;
     unawaited(_subscription?.cancel());
     unawaited(_service.dispose());
+    _dio.close(force: true);
     super.dispose();
   }
 
@@ -179,141 +178,110 @@ class _PerformanceTierDemoPageState extends State<PerformanceTierDemoPage> {
 
   bool get _canUpdateUi => _allowUiUpdates && mounted;
 
-  Future<void> _runRustUploadProbe() async {
-    if (_runningRustUpload) {
+  Future<void> _runDioUploadProbe() async {
+    if (_runningUpload) {
       return;
     }
     setState(() {
-      _runningRustUpload = true;
-      _rustUploadError = null;
+      _runningUpload = true;
+      _uploadError = null;
     });
 
+    final stopwatch = Stopwatch()..start();
     try {
-      String? initWarning;
-      try {
-        await _ensureRustEngineInitialized();
-      } catch (error) {
-        initWarning = '$error';
-      }
-
-      final body = _buildMultipartPayload(
-        fieldName: 'file',
-        fileName: 'performance_tier_probe.txt',
-        fileContent:
-            'probe from flutter_performance_tier @ ${DateTime.now().toIso8601String()}',
-      );
       final idempotencyKey =
           'performance-tier-upload-${DateTime.now().microsecondsSinceEpoch}';
-
-      final response = await _networkClient.request(
-        method: NetHttpMethod.post,
-        url: _rustUploadUrl,
-        headers: _buildUploadHeaders(
-          body: body,
-          idempotencyKey: idempotencyKey,
+      final formData = FormData.fromMap(<String, Object>{
+        'file': MultipartFile.fromString(
+          'probe from flutter_performance_tier @ ${DateTime.now().toIso8601String()}',
+          filename: 'performance_tier_probe.txt',
         ),
-        body: body.bytes,
+      });
+
+      final response = await _dio.post<Object?>(
+        _uploadUrl,
+        data: formData,
+        options: Options(
+          headers: <String, String>{
+            'accept': 'application/json, text/plain, */*',
+            'idempotency-key': idempotencyKey,
+          },
+          responseType: ResponseType.bytes,
+        ),
       );
 
-      final responseText = _formatResponsePreview(response.bodyBytes);
-      final routeReason = response.routeReason ?? '-';
-      final fallbackSuffix = response.fromFallback ? ' (fallback)' : '';
-      final initSuffix = initWarning == null
-          ? ''
-          : '\ninitWarning=$initWarning';
+      final statusCode = response.statusCode ?? -1;
+      final responseText = _formatResponsePreview(response.data);
       final result =
-          'status=${response.statusCode}, '
-          'channel=${response.channel.name}$fallbackSuffix, '
-          'route=$routeReason, '
-          'costMs=${response.costMs}, '
-          'bytes=${response.bridgeBytes}\n'
-          'response=$responseText$initSuffix';
+          'status=$statusCode, '
+          'client=dio, '
+          'costMs=${stopwatch.elapsedMilliseconds}\n'
+          'response=$responseText';
 
       _onStructuredLogLine(
-        '[rust_upload_probe] status=${response.statusCode} channel=${response.channel.name} '
-        'fallback=${response.fromFallback} route=$routeReason',
+        '[dio_upload_probe] status=$statusCode '
+        'costMs=${stopwatch.elapsedMilliseconds}',
       );
       if (!_canUpdateUi) {
         return;
       }
       setState(() {
-        _rustUploadResult = result;
+        _uploadResult = result;
       });
-    } catch (error) {
-      _onStructuredLogLine('[rust_upload_probe] failed: $error');
+    } on DioException catch (error) {
+      final errorText = _formatDioException(error);
+      _onStructuredLogLine('[dio_upload_probe] failed: $errorText');
       if (!_canUpdateUi) {
         return;
       }
       setState(() {
-        _rustUploadError = '$error';
+        _uploadError = errorText;
+      });
+    } catch (error) {
+      _onStructuredLogLine('[dio_upload_probe] failed: $error');
+      if (!_canUpdateUi) {
+        return;
+      }
+      setState(() {
+        _uploadError = '$error';
       });
     } finally {
       if (_canUpdateUi) {
         setState(() {
-          _runningRustUpload = false;
+          _runningUpload = false;
         });
       }
     }
   }
 
-  Future<void> _ensureRustEngineInitialized() async {
-    if (_rustEngineInitialized) {
-      return;
+  String _formatDioException(DioException error) {
+    final statusCode = error.response?.statusCode;
+    final responsePreview = _formatResponsePreview(error.response?.data);
+    final message = error.message ?? error.error?.toString() ?? '$error';
+    if (statusCode == null) {
+      return message;
     }
-    final rustAdapter = _networkClient.rustAdapter;
-    if (rustAdapter == null) {
-      throw StateError('RustAdapter not available on current network client.');
-    }
-    await rustAdapter.initializeEngine(
-      options: const RustEngineInitOptions(
-        baseUrl: 'http://47.110.52.208:7777',
-      ),
-    );
-    _rustEngineInitialized = true;
-    _onStructuredLogLine('[rust_upload_probe] rust engine initialized');
+    return 'status=$statusCode, message=$message, response=$responsePreview';
   }
 
-  _MultipartPayload _buildMultipartPayload({
-    required String fieldName,
-    required String fileName,
-    required String fileContent,
-  }) {
-    final boundary =
-        '----flutter-rust-net-${DateTime.now().microsecondsSinceEpoch}';
-    final content = StringBuffer()
-      ..writeln('--$boundary')
-      ..writeln(
-        'Content-Disposition: form-data; name="$fieldName"; filename="$fileName"',
-      )
-      ..writeln('Content-Type: text/plain; charset=utf-8')
-      ..writeln()
-      ..write(fileContent)
-      ..writeln()
-      ..write('--$boundary--\r\n');
-    return _MultipartPayload(
-      boundary: boundary,
-      bytes: Uint8List.fromList(utf8.encode(content.toString())),
-    );
-  }
-
-  Map<String, String> _buildUploadHeaders({
-    required _MultipartPayload body,
-    required String idempotencyKey,
-  }) {
-    return <String, String>{
-      NetHeaderName.contentType.wireName:
-          'multipart/form-data; boundary=${body.boundary}',
-      NetHeaderName.contentLength.wireName: body.bytes.length.toString(),
-      NetHeaderName.accept.wireName: 'application/json, text/plain, */*',
-      NetHeaderName.idempotencyKey.wireName: idempotencyKey,
-    };
-  }
-
-  String _formatResponsePreview(List<int>? bytes) {
-    if (bytes == null || bytes.isEmpty) {
+  String _formatResponsePreview(Object? data) {
+    if (data == null) {
       return '-';
     }
-    final text = utf8.decode(bytes, allowMalformed: true);
+    if (data is List<int>) {
+      return _truncatePreview(utf8.decode(data, allowMalformed: true));
+    }
+    if (data is String) {
+      return _truncatePreview(data);
+    }
+    if (data is Map || data is List) {
+      final text = const JsonEncoder.withIndent('  ').convert(data);
+      return _truncatePreview(text);
+    }
+    return _truncatePreview(data.toString());
+  }
+
+  String _truncatePreview(String text) {
     if (text.length <= 400) {
       return text;
     }
@@ -328,12 +296,12 @@ class _PerformanceTierDemoPageState extends State<PerformanceTierDemoPage> {
       if (_decision != null) 'decision': _decision!.toMap(),
       if (_error != null) 'error': _error,
       'recentStructuredLogs': _structuredLogs.take(40).toList(),
-      'rustUploadProbe': <String, Object?>{
-        'url': _rustUploadUrl,
-        'running': _runningRustUpload,
-        'rustInitialized': _rustEngineInitialized,
-        'result': _rustUploadResult,
-        if (_rustUploadError != null) 'error': _rustUploadError,
+      'uploadProbe': <String, Object?>{
+        'url': _uploadUrl,
+        'client': 'dio',
+        'running': _runningUpload,
+        'result': _uploadResult,
+        if (_uploadError != null) 'error': _uploadError,
       },
     };
     return const JsonEncoder.withIndent('  ').convert(report);
@@ -405,8 +373,8 @@ class _PerformanceTierDemoPageState extends State<PerformanceTierDemoPage> {
                 ),
                 const SizedBox(width: 8),
                 FilledButton.icon(
-                  onPressed: _runningRustUpload ? null : _runRustUploadProbe,
-                  icon: _runningRustUpload
+                  onPressed: _runningUpload ? null : _runDioUploadProbe,
+                  icon: _runningUpload
                       ? const SizedBox(
                           height: 14,
                           width: 14,
@@ -414,28 +382,26 @@ class _PerformanceTierDemoPageState extends State<PerformanceTierDemoPage> {
                         )
                       : const Icon(Icons.cloud_upload),
                   label: Text(
-                    _runningRustUpload
-                        ? 'Uploading...'
-                        : 'Run Rust /upload probe',
+                    _runningUpload ? 'Uploading...' : 'Run Dio /upload probe',
                   ),
                 ),
               ],
             ),
             const SizedBox(height: 8),
             Text(
-              'Rust upload endpoint: $_rustUploadUrl',
+              'Upload endpoint: $_uploadUrl',
               style: Theme.of(context).textTheme.bodySmall,
             ),
-            if (_rustUploadError != null) ...<Widget>[
+            if (_uploadError != null) ...<Widget>[
               const SizedBox(height: 8),
               Text(
-                'Upload error: $_rustUploadError',
+                'Upload error: $_uploadError',
                 style: TextStyle(color: Theme.of(context).colorScheme.error),
               ),
             ],
             const SizedBox(height: 8),
             SelectableText(
-              _rustUploadResult,
+              _uploadResult,
               style: const TextStyle(fontFamily: 'monospace'),
             ),
             const SizedBox(height: 12),
@@ -464,11 +430,4 @@ class _PerformanceTierDemoPageState extends State<PerformanceTierDemoPage> {
       ),
     );
   }
-}
-
-class _MultipartPayload {
-  const _MultipartPayload({required this.boundary, required this.bytes});
-
-  final String boundary;
-  final Uint8List bytes;
 }
