@@ -37,6 +37,16 @@ class PerformanceTierDemoPage extends StatefulWidget {
 
 class _PerformanceTierDemoPageState extends State<PerformanceTierDemoPage> {
   static const String _uploadUrl = 'http://47.110.52.208:7777/upload';
+  static const String _loginUrl = 'http://47.110.52.208:7777/user/login';
+  static const String _uploadTokenFromEnv = String.fromEnvironment(
+    'UPLOAD_PROBE_TOKEN',
+  );
+  static const String _uploadUsername = String.fromEnvironment(
+    'UPLOAD_PROBE_USERNAME',
+  );
+  static const String _uploadPassword = String.fromEnvironment(
+    'UPLOAD_PROBE_PASSWORD',
+  );
 
   final List<String> _structuredLogs = <String>[];
 
@@ -54,6 +64,7 @@ class _PerformanceTierDemoPageState extends State<PerformanceTierDemoPage> {
   String? _error;
   String? _uploadError;
   String _uploadResult = 'Not run yet.';
+  String? _cachedUploadToken;
   bool _initializing = true;
   bool _refreshing = false;
   bool _runningUpload = false;
@@ -178,6 +189,49 @@ class _PerformanceTierDemoPageState extends State<PerformanceTierDemoPage> {
 
   bool get _canUpdateUi => _allowUiUpdates && mounted;
 
+  Future<String> _resolveUploadToken() async {
+    if (_cachedUploadToken != null && _cachedUploadToken!.isNotEmpty) {
+      return _cachedUploadToken!;
+    }
+    if (_uploadTokenFromEnv.isNotEmpty) {
+      _cachedUploadToken = _uploadTokenFromEnv;
+      return _cachedUploadToken!;
+    }
+    if (_uploadUsername.isEmpty || _uploadPassword.isEmpty) {
+      throw StateError(
+        'Missing upload auth. Set UPLOAD_PROBE_TOKEN or '
+        'UPLOAD_PROBE_USERNAME/UPLOAD_PROBE_PASSWORD via --dart-define.',
+      );
+    }
+    final response = await _dio.post<Map<String, dynamic>>(
+      _loginUrl,
+      data: <String, String>{
+        'username': _uploadUsername,
+        'password': _uploadPassword,
+      },
+      options: Options(responseType: ResponseType.json),
+    );
+    final body = response.data;
+    if (body == null) {
+      throw StateError('Login response is empty.');
+    }
+    final code = body['code'];
+    if (code is! num || code.toInt() != 200) {
+      throw StateError(
+        'Login failed: code=$code, message=${body['message'] ?? '-'}',
+      );
+    }
+    final token = body['data'];
+    if (token is! String || token.isEmpty) {
+      throw StateError('Login succeeded but token is empty.');
+    }
+    _cachedUploadToken = token;
+    _onStructuredLogLine(
+      '[dio_upload_probe] login ok tokenLen=${token.length}',
+    );
+    return token;
+  }
+
   Future<void> _runDioUploadProbe() async {
     if (_runningUpload) {
       return;
@@ -189,6 +243,7 @@ class _PerformanceTierDemoPageState extends State<PerformanceTierDemoPage> {
 
     final stopwatch = Stopwatch()..start();
     try {
+      final token = await _resolveUploadToken();
       final idempotencyKey =
           'performance-tier-upload-${DateTime.now().microsecondsSinceEpoch}';
       final formData = FormData.fromMap(<String, Object>{
@@ -205,6 +260,8 @@ class _PerformanceTierDemoPageState extends State<PerformanceTierDemoPage> {
           headers: <String, String>{
             'accept': 'application/json, text/plain, */*',
             'idempotency-key': idempotencyKey,
+            'token': token,
+            'Authorization': 'Bearer $token',
           },
           responseType: ResponseType.bytes,
         ),
@@ -257,11 +314,18 @@ class _PerformanceTierDemoPageState extends State<PerformanceTierDemoPage> {
   String _formatDioException(DioException error) {
     final statusCode = error.response?.statusCode;
     final responsePreview = _formatResponsePreview(error.response?.data);
-    final message = error.message ?? error.error?.toString() ?? '$error';
+    final message = error.message?.trim();
+    final cause = error.error?.toString().trim();
+    final details = <String>[
+      'type=${error.type.name}',
+      if (message != null && message.isNotEmpty) 'message=$message',
+      if (cause != null && cause.isNotEmpty && cause != message) 'cause=$cause',
+      'url=${error.requestOptions.uri}',
+    ].join(', ');
     if (statusCode == null) {
-      return message;
+      return details;
     }
-    return 'status=$statusCode, message=$message, response=$responsePreview';
+    return '$details, status=$statusCode, response=$responsePreview';
   }
 
   String _formatResponsePreview(Object? data) {
