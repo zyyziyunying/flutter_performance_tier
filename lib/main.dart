@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 
+import 'package:common/common.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -58,6 +59,7 @@ class _PerformanceTierDemoPageState extends State<PerformanceTierDemoPage> {
   late final DefaultPerformanceTierService _service =
       DefaultPerformanceTierService(logger: _logger);
   late final Dio _dio = Dio();
+  late final DioLogUploader _logUploader = DioLogUploader(dio: _dio);
 
   StreamSubscription<TierDecision>? _subscription;
   TierDecision? _decision;
@@ -93,6 +95,7 @@ class _PerformanceTierDemoPageState extends State<PerformanceTierDemoPage> {
     _allowUiUpdates = false;
     unawaited(_subscription?.cancel());
     unawaited(_service.dispose());
+    _logUploader.close(force: true);
     _dio.close(force: true);
     super.dispose();
   }
@@ -241,43 +244,53 @@ class _PerformanceTierDemoPageState extends State<PerformanceTierDemoPage> {
       _uploadError = null;
     });
 
-    final stopwatch = Stopwatch()..start();
     try {
       final token = await _resolveUploadToken();
-      final idempotencyKey =
-          'performance-tier-upload-${DateTime.now().microsecondsSinceEpoch}';
-      final formData = FormData.fromMap(<String, Object>{
-        'file': MultipartFile.fromString(
-          'probe from flutter_performance_tier @ ${DateTime.now().toIso8601String()}',
-          filename: 'performance_tier_probe.txt',
-        ),
-      });
-
-      final response = await _dio.post<Object?>(
-        _uploadUrl,
-        data: formData,
-        options: Options(
-          headers: <String, String>{
-            'accept': 'application/json, text/plain, */*',
-            'idempotency-key': idempotencyKey,
-            'token': token,
-            'Authorization': 'Bearer $token',
-          },
-          responseType: ResponseType.bytes,
-        ),
+      final now = DateTime.now();
+      final fileName =
+          'performance_tier_report_'
+          '${now.toUtc().toIso8601String().replaceAll(':', '').replaceAll('.', '')}.json';
+      final uploadResult = await _logUploader.upload(
+        uploadUri: Uri.parse(_uploadUrl),
+        fileContent: _buildAiReport(),
+        token: token,
+        fileName: fileName,
+        fieldName: 'file',
+        fields: <String, String>{
+          'source': 'flutter_performance_tier',
+          'generatedAt': now.toIso8601String(),
+        },
+        timeout: const Duration(seconds: 30),
       );
 
-      final statusCode = response.statusCode ?? -1;
-      final responseText = _formatResponsePreview(response.data);
+      final statusCode = uploadResult.statusCode ?? -1;
+      final responseText = _truncatePreview(uploadResult.responseBody);
+      if (!uploadResult.success) {
+        final errorText = <String>[
+          'status=$statusCode',
+          'client=common.DioLogUploader',
+          'costMs=${uploadResult.elapsedMs}',
+          if (uploadResult.error != null && uploadResult.error!.isNotEmpty)
+            'error=${uploadResult.error}',
+          if (responseText.isNotEmpty) 'response=$responseText',
+        ].join(', ');
+        _onStructuredLogLine('[dio_upload_probe] failed: $errorText');
+        if (_canUpdateUi) {
+          setState(() {
+            _uploadError = errorText;
+          });
+        }
+        return;
+      }
+
       final result =
           'status=$statusCode, '
-          'client=dio, '
-          'costMs=${stopwatch.elapsedMilliseconds}\n'
+          'client=common.DioLogUploader, '
+          'costMs=${uploadResult.elapsedMs}\n'
           'response=$responseText';
-
       _onStructuredLogLine(
         '[dio_upload_probe] status=$statusCode '
-        'costMs=${stopwatch.elapsedMilliseconds}',
+        'costMs=${uploadResult.elapsedMs}',
       );
       if (!_canUpdateUi) {
         return;
@@ -362,7 +375,7 @@ class _PerformanceTierDemoPageState extends State<PerformanceTierDemoPage> {
       'recentStructuredLogs': _structuredLogs.take(40).toList(),
       'uploadProbe': <String, Object?>{
         'url': _uploadUrl,
-        'client': 'dio',
+        'client': 'common.DioLogUploader',
         'running': _runningUpload,
         'result': _uploadResult,
         if (_uploadError != null) 'error': _uploadError,
