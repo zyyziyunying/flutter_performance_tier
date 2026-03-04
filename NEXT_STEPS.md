@@ -1,8 +1,8 @@
 # 开发推进与下一步（基于 `DEVELOPMENT_PLAN.md`）
 
-> 评估时间：2026-03-03  
-> 本次更新：已完成“运行期状态停留时长 + 触发次数埋点”落地，并同步文档与测试。  
-> 对齐范围：`DEVELOPMENT_PLAN.md` 第 1-157 行
+> 评估时间：2026-03-04  
+> 本次更新：已明确当前交付目标为“结构化 JSON + 经业务服务上传 OSS”，日志平台与报表闭环后置。  
+> 对齐范围：`DEVELOPMENT_PLAN.md` 第 1-159 行
 
 ## 1）已完成
 
@@ -26,29 +26,27 @@
 
 ## 2）当前正在做
 
-- **阶段定位**：**M3 收尾后的可观测性增强阶段**（远程配置与灰度发布能力后置）。
+- **阶段定位**：**M3 收尾后的初步真机验收阶段**（按验收清单验证功能闭环）。
 - **关键缺口 A（执行清单）**：**已清零**。
 - **关键缺口 B（规则工程化）**：**已清零**。
 - **关键缺口 C（测试验收）**：**已清零**。
 - **关键缺口 D（运行期信号）**：**已清零**。
+- **当前不纳入**：业务日志平台接入、阈值回归报表/看板建设。
+- **当前不强制**：OSS 上传链路固化（命名规范/重试策略等）可按后续实际需要再优化。
 
 ## 3）下一步准备做（按优先级）
 
-1. **可观测性接入**：将新增埋点字段接入业务日志平台，输出阈值回归报表。
-2. **阈值回归闭环**：基于状态停留时长与触发次数，补齐场景化回归看板与阈值建议。
-3. **后置项（M4）**：远程配置抽象 + 灰度与回滚策略文档。
+1. **初步真机验收**：按 `docs/real_device_acceptance_checklist.md` 完成 Android/iOS 双端功能验收。
+2. **问题收敛**：记录验收中发现的问题与结论，保证“功能基本可用”。
+3. **后置项（M4）**：远程配置抽象 + 灰度与回滚策略文档（平台报表能力继续后置，链路固化按需进行）。
 
 ## 4）会话交接（下次可直接继续）
 
 - **本次关键改动文件**：
-  - `lib/performance_tier/model/runtime_tier_observation.dart`（新增状态停留时长与触发次数字段）
-  - `lib/performance_tier/service/runtime_tier_controller.dart`（新增会话级触发计数与状态停留时长计算）
-  - `test/performance_tier/service/runtime_tier_controller_test.dart`（新增状态时长/触发次数断言）
-  - `test/performance_tier/service/default_performance_tier_service_test.dart`（新增 runtimeObservation 透传断言）
-  - `docs/runtime_dynamic_tiering.md`（补充 `statusDurationMs` / 触发次数口径）
-  - `README.md`（补充 runtimeObservation 新字段快速读取示例）
-  - `NEXT_STEPS.md`（阶段状态与优先级更新）
-- **已验证命令**：
-  - `flutter analyze`
-  - `flutter test`
-- **下次会话建议起手任务**：进入“**可观测性接入 + 阈值回归闭环**”任务。
+  - `README.md`（新增“当前目标（2026-03）”口径）
+  - `DEVELOPMENT_PLAN.md`（新增当前交付口径、非目标与验收标准）
+  - `NEXT_STEPS.md`（阶段定位与优先级调整为真机初步验收）
+  - `docs/runtime_dynamic_tiering.md`（后续建议改为“JSON + OSS 优先”）
+  - `docs/real_device_acceptance_checklist.md`（新增真机初步验收 checklist）
+- **已验证命令**：本次仅文档更新，未重复执行 `flutter analyze` / `flutter test`。
+- **下次会话建议起手任务**：进入“**按 checklist 进行真机初步验收**”任务。

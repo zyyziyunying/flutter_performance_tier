@@ -186,5 +186,6 @@ final service = DefaultPerformanceTierService(
 
 ## 8. 后续建议
 
-- 将 `runtimeObservation` 字段接入业务埋点平台，按场景输出阈值回归报表。
+- 优先将 `runtimeObservation` 与 `deviceSignals` 字段纳入诊断 JSON，并通过业务上传服务归档到 OSS。
+- 业务日志平台接入与阈值回归报表看板属于后续增强项，不作为当前交付前置。
 - 在 M4 远程配置阶段，把联调模板参数下沉到可灰度下发配置。
