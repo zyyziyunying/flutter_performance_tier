@@ -5,6 +5,7 @@
 ## 1. 规划（Plan）
 
 - `plan/development_plan.md`：项目目标、里程碑、验收标准与总体推进方向。
+- `plan/current_delivery_status_2026_03_09.md`：当前交付状态、达标判断与收口建议。
 - `plan/real_device_acceptance_checklist.md`：当前阶段真机验收 checklist 与记录模板。
 
 ## 2. 进展（Progress）
