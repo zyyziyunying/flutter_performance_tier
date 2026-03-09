@@ -8,6 +8,7 @@
 
 - [ ] 使用真机（非模拟器）各 1 台：Android / iOS。
 - [ ] `flutter run` 启动成功，Demo 页面可见。
+- [ ] 如需验证上传链路，使用 `flutter run -t lib/internal_upload_probe_main.dart` 启动内部 probe Demo。
 - [ ] 上传鉴权参数可用（`UPLOAD_PROBE_TOKEN` 或 `UPLOAD_PROBE_USERNAME` + `UPLOAD_PROBE_PASSWORD`）。
 
 ## 2. 核心功能（两端都做）
@@ -27,7 +28,7 @@
 
 ## 4. 上传链路（重点）
 
-- [ ] 点击 `Run Dio /upload probe` 后上传成功。
+- [ ] 在内部 probe Demo 中点击 `Run /upload probe` 后上传成功。
 - [ ] 服务端返回成功信息可见。
 - [ ] OSS 上可查到对应 JSON 对象（文件名/时间匹配）。
 - [ ] 上传失败时（断网或鉴权错误）有清晰错误信息，恢复后可再次成功上传。

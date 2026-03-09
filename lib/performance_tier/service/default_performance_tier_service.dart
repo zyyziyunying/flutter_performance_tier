@@ -129,6 +129,7 @@ class DefaultPerformanceTierService implements PerformanceTierService {
     });
   }
 
+  @override
   Future<void> dispose() async {
     if (_disposed) {
       _logEvent('service.dispose.skipped', const <String, Object?>{

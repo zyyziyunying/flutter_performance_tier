@@ -8,4 +8,6 @@ abstract interface class PerformanceTierService {
   Stream<TierDecision> watchDecision();
 
   Future<void> refresh();
+
+  Future<void> dispose();
 }

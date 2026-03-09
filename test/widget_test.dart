@@ -9,11 +9,11 @@ void main() {
     await tester.pumpWidget(const PerformanceTierDemoApp());
     await tester.pumpAndSettle();
 
-    expect(find.text('Performance Tier Logs'), findsOneWidget);
+    expect(find.text('Performance Tier Diagnostics'), findsOneWidget);
     expect(find.byTooltip('Refresh decision'), findsOneWidget);
     expect(find.byTooltip('Copy AI report'), findsOneWidget);
     expect(
-      find.text('Panel mode removed. Structured output only.'),
+      find.textContaining('Structured diagnostics demo only.'),
       findsOneWidget,
     );
     expect(find.text('AI Diagnostics JSON'), findsOneWidget);

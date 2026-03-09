@@ -19,6 +19,7 @@
 - `dart format lib test`
 - `flutter test`
 - `flutter run`
+- `flutter run -t lib/internal_upload_probe_main.dart`
 
 ## 结构化日志优先（已移除面板）
 
@@ -28,6 +29,24 @@
 - 运行 `flutter run` 后，在控制台筛选 `PERF_TIER_LOG`
 - App 内可一键复制 `AI Diagnostics JSON`
 - `flutter test` 会输出 `PERF_TIER_TEST_RESULT` JSON 结果
+
+默认 `main.dart` 只保留最小诊断示例。  
+内部上传探针已拆到独立入口：`flutter run -t lib/internal_upload_probe_main.dart`。
+
+## 生命周期
+
+`PerformanceTierService` 现在显式暴露 `dispose()`。  
+业务侧在页面或应用生命周期结束时应主动释放服务，避免遗留 `Timer`、`StreamController` 和掉帧采样器。
+
+```dart
+final PerformanceTierService service = DefaultPerformanceTierService();
+
+await service.initialize();
+final decision = await service.getCurrentDecision();
+
+// 页面或容器销毁时释放资源
+await service.dispose();
+```
 
 ## 快速接入：开启掉帧信号（可选）
 
@@ -93,8 +112,7 @@ final service = DefaultPerformanceTierService(
 - 项目规划：`docs/plan/development_plan.md`
 - 当前推进：`docs/progress/next_steps.md`
 - 真机验收清单：`docs/plan/real_device_acceptance_checklist.md`
-- 运行期动态降级：`docs/runtime_dynamic_tiering.md`
+- 运行期动态降级：`docs/progress/runtime_dynamic_tiering.md`
 - 规则说明：`docs/rulebook.md`
-- 场景策略映射：`docs/scene_policy_mapping.md`
-- 业务接入示例：`docs/business_integration_sample.md`
+- 历史场景策略映射：`docs/archived/scene_policy_mapping.md`
 - 诊断数据分析：`docs/diagnostics_analysis_workflow.md`

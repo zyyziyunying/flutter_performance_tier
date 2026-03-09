@@ -32,7 +32,7 @@
 ## 4. 总体架构
 
 - Dart 层：
-  - `PerformanceTierService`：统一入口，提供初始化、订阅、刷新。
+  - `PerformanceTierService`：统一入口，提供初始化、订阅、刷新与释放。
   - `TierEngine`：分级计算核心（规则引擎）。
   - `PolicyResolver`：把 Tier 映射为业务可用策略（开关/阈值）。
   - `ConfigProvider`：本地默认配置 + 远程配置合并。
@@ -108,6 +108,7 @@ flutter_performance_tier/
       config/
       telemetry/
     main.dart
+    internal_upload_probe_main.dart
   android/
   ios/
   docs/
@@ -118,10 +119,10 @@ flutter_performance_tier/
     progress/
       next_steps.md
       initialization_baseline.md
+      runtime_dynamic_tiering.md
     rulebook.md
-    runtime_dynamic_tiering.md
-    scene_policy_mapping.md
-    business_integration_sample.md
+    archived/
+      scene_policy_mapping.md
 ```
 
 ## 8. API 草案
@@ -132,6 +133,7 @@ abstract class PerformanceTierService {
   Future<TierDecision> getCurrentDecision();
   Stream<TierDecision> watchDecision();
   Future<void> refresh();
+  Future<void> dispose();
 }
 ```
 

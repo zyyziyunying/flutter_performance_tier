@@ -274,5 +274,34 @@ void main() {
         ]);
       },
     );
+
+    test('can be disposed through the service interface', () async {
+      final collector = SequenceSignalCollector(<DeviceSignals>[
+        androidSignals(
+          ramBytes: 8 * bytesPerGb,
+          mediaPerformanceClass: 12,
+          sdkInt: 35,
+        ),
+      ]);
+      final sampler = SequenceFrameDropSignalSampler(
+        const <FrameDropSignalSnapshot>[FrameDropSignalSnapshot()],
+      );
+      final PerformanceTierService service = DefaultPerformanceTierService(
+        signalCollector: collector,
+        configProvider: const DefaultConfigProvider(),
+        engine: const RuleBasedTierEngine(),
+        policyResolver: const DefaultPolicyResolver(),
+        frameDropSignalSampler: sampler,
+        enableFrameDropSignal: true,
+        runtimeSignalRefreshInterval: Duration.zero,
+      );
+      addTearDown(service.dispose);
+
+      await service.initialize();
+      await service.dispose();
+
+      expect(sampler.startCallCount, 1);
+      expect(sampler.stopCallCount, 1);
+    });
   });
 }

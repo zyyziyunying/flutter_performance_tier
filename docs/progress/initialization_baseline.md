@@ -5,10 +5,10 @@
 
 ## 测量方式
 
-- 用例：`test/performance_tier/service/default_performance_tier_service_test.dart`
+- 用例：`test/performance_tier/service/default_performance_tier_service_baseline_perf_test.dart`
 - 关注测试：`DefaultPerformanceTierService initialization baseline returns first decision within 300ms budget`
 - 执行命令：
-  - `flutter test test/performance_tier/service/default_performance_tier_service_test.dart --plain-name "returns first decision within 300ms budget"`
+  - `flutter test test/performance_tier/service/default_performance_tier_service_baseline_perf_test.dart --plain-name "returns first decision within 300ms budget"`
 - 统计口径：
   - 预热 5 次 + 采样 40 次
   - 指标为 `initialize() + getCurrentDecision()` 的端到端耗时

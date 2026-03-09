@@ -174,7 +174,7 @@ final service = DefaultPerformanceTierService(
   - 热状态 / 内存压力 / 掉帧降级映射
   - 掉帧开关关闭时不触发降级
   - 结构化状态字段断言
-- `test/performance_tier/service/default_performance_tier_service_test.dart`
+- `test/performance_tier/service/default_performance_tier_service_runtime_signals_test.dart`
   - 运行期降级在策略解析前生效
   - 内存压力与掉帧信号触发服务编排降级
   - `runtimeObservation` 透传断言

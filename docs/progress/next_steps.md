@@ -20,7 +20,7 @@
   - `RuntimeTierController` 输出 `pending/active/cooldown/recovery-pending/recovered`；
   - demo 改为结构化日志诊断页（`PERF_TIER_LOG` + AI Diagnostics JSON）。
 - **M3 收尾（本次）**：
-  - `docs/runtime_dynamic_tiering.md` 补齐掉帧阈值联调流程、参数模板、接入示例；
+  - `docs/progress/runtime_dynamic_tiering.md` 补齐掉帧阈值联调流程、参数模板、接入示例；
   - `README.md` 补齐 M3 联调模板速查（Balanced / Feed-Scroll / High Refresh）；
   - 文档测试描述已对齐“结构化日志优先”现状。
 
@@ -46,7 +46,7 @@
   - `README.md`（新增“当前目标（2026-03）”口径）
   - `docs/plan/development_plan.md`（新增当前交付口径、非目标与验收标准）
   - `docs/progress/next_steps.md`（阶段定位与优先级调整为真机初步验收）
-  - `docs/runtime_dynamic_tiering.md`（后续建议改为“JSON + OSS 优先”）
+  - `docs/progress/runtime_dynamic_tiering.md`（后续建议改为“JSON + OSS 优先”）
   - `docs/plan/real_device_acceptance_checklist.md`（新增真机初步验收 checklist）
 - **已验证命令**：本次仅文档更新，未重复执行 `flutter analyze` / `flutter test`。
 - **下次会话建议起手任务**：进入“**按 checklist 进行真机初步验收**”任务。

@@ -12,15 +12,14 @@
 
 - `progress/next_steps.md`：当前阶段完成项、进行中事项与下一步优先级。
 - `progress/initialization_baseline.md`：初始化耗时基线与测量口径记录。
+- `progress/runtime_dynamic_tiering.md`：运行期动态降级策略、联调模板与测试说明。
 
 ## 3. 参考（Reference）
 
 - `rulebook.md`：默认阈值、覆盖优先级与规则链路说明。
-- `runtime_dynamic_tiering.md`：运行期动态降级策略与联调建议。
-- `scene_policy_mapping.md`：首批高负载场景的策略映射定义。
-- `business_integration_sample.md`：业务侧按场景命中策略的接入样例。
 - `diagnostics_analysis_workflow.md`：拉取诊断数据后的批量分析流程与脚本用法。
+- `archived/scene_policy_mapping.md`：首批高负载场景的历史策略映射定义。
 
 ## 4. 归档（Archived）
 
-- `archived/`：存放已被替代、仅保留历史背景的文档；当前暂无已归档正文。
+- `archived/`：存放已被替代、仅保留历史背景的文档。

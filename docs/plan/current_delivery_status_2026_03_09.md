@@ -21,7 +21,7 @@
 
 ## 3. 已完成能力
 
-- 已具备统一服务入口：`initialize()`、`getCurrentDecision()`、`watchDecision()`、`refresh()`。
+- 已具备统一服务入口：`initialize()`、`getCurrentDecision()`、`watchDecision()`、`refresh()`、`dispose()`。
 - 已具备静态设备分级：RAM、`isLowRamDevice`、`mediaPerformanceClass`、SDK 封顶、机型封顶规则。
 - 已具备策略映射：可将 Tier 映射为动画、媒体预加载、解码并发、图片尺寸等业务策略。
 - 已具备运行期调整：热状态、低电量、内存压力、掉帧信号接入，含降级防抖、恢复冷却、升级防抖。
@@ -63,12 +63,12 @@
 - iOS 真机链路尚缺实测结论。
 - 运行期动态状态变化虽然有测试保护，但仍缺少完整真机验收记录。
 
-## 6. 工程收口缺口
+## 6. 工程收口进展与剩余缺口
 
-- `PerformanceTierService` interface 尚未暴露 `dispose()`，而具体实现内部存在需要释放的 `Timer`、`StreamController`、`FrameDropSignalSampler`。
-- Demo 与内部联调 probe 仍混在 `lib/main.dart`，仓库对外定位与内部联调边界还不够干净。
-- `pubspec.yaml` 中的 `description` 仍为默认值 `"A new Flutter project."`，与当前仓库定位不匹配。
-- 文档虽然已较前收敛，但“规划 / 当前进度 / 审查结论”之间仍有少量重叠，需要逐步收口。
+- `PerformanceTierService` interface 已补 `dispose()`，README 与测试已对齐生命周期要求。
+- 默认 Demo 与内部上传 probe 已拆为两个入口：`lib/main.dart` 负责最小诊断示例，`lib/internal_upload_probe_main.dart` 负责内部联调上传验证。
+- `pubspec.yaml` 的 `description` 已更新为与仓库定位一致的描述。
+- 当前剩余缺口仍集中在真机验收记录、真实鉴权上传闭环，以及少量规划/进度/审查文档之间的内容重叠。
 
 ## 7. 当前建议口径
 
@@ -80,9 +80,8 @@
 
 1. 按 `docs/plan/real_device_acceptance_checklist.md` 完成 Android / iOS 真机验收，并补完整记录。
 2. 用真实鉴权参数完成一次上传探针验证，确认 OSS 上可查到对应 JSON 对象。
-3. 给 `PerformanceTierService` 增加 `dispose()` 生命周期出口，并同步更新示例。
-4. 明确 Demo 与内部上传 probe 的边界，避免继续稀释 package 主体定位。
-5. 更新 `pubspec.yaml` 的 description，使仓库定位与文档一致。
+3. 补齐 iOS 真机与运行期状态变化的实测记录，形成可复盘样本。
+4. 继续压缩规划、进度、审查三类文档的重叠内容，减少后续维护漂移。
 
 ## 9. 阶段结论
 

@@ -98,6 +98,12 @@
 - 在 README / 接入示例里明确生命周期要求。
 - 增加一个“通过 interface 持有并释放”的测试或示例，确保抽象与实现一致。
 
+**处理结果（2026-03-09）**
+
+- `PerformanceTierService` interface 已补充 `dispose()`，`DefaultPerformanceTierService` 通过 interface 即可释放内部 `Timer`、`StreamController` 与掉帧采样器。
+- README 已新增生命周期说明与 `dispose()` 接入示例。
+- 已补“通过 interface 持有并释放服务”的测试，确保抽象层可直接落地。
+
 ### 3.3 中优先级：Demo 与可复用库边界混杂，仓库定位不够干净
 
 **涉及文件**
@@ -131,11 +137,17 @@
 - 更新 `pubspec.yaml` 描述，明确这是内部 package 还是可复用模块。
 - README 增加“库主干”和“内部联调 Demo”边界说明。
 
+**处理结果（2026-03-09）**
+
+- 默认 `lib/main.dart` 已收敛为最小结构化诊断 demo。
+- 内部上传 probe 已拆分到独立入口 `lib/internal_upload_probe_main.dart`，通过 `flutter run -t lib/internal_upload_probe_main.dart` 启动。
+- `pubspec.yaml` description 与 README 均已更新，仓库定位和 demo 边界较前清晰。
+
 ### 3.4 低优先级：文档已出现漂移，存在误导性引用
 
 **涉及文件**
 
-- `docs/runtime_dynamic_tiering.md`
+- `docs/progress/runtime_dynamic_tiering.md`
 - `docs/progress/initialization_baseline.md`
 - `test/performance_tier/service/default_performance_tier_service_baseline_perf_test.dart`
 - `test/performance_tier/service/default_performance_tier_service_runtime_signals_test.dart`
@@ -160,6 +172,12 @@
 - 把文档引用改为当前真实文件名。
 - 文档里尽量少写“单文件固定路径”，必要时直接写测试名和推荐命令。
 - 以后文档更新时，把“引用是否还能跑通”作为最基本检查项。
+
+**处理结果（2026-03-09）**
+
+- 初始化基线与运行期动态降级文档中的测试文件引用已改为当前真实文件名。
+- README、`docs/README.md` 与验收清单中的文档路径、demo 入口说明已同步更新。
+- 现有主要文档导航已不再指向缺失文件。
 
 ## 4. 额外观察
 
