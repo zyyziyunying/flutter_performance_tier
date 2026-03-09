@@ -1,0 +1,57 @@
+{
+  "status": "ok",
+  "generatedAt": "2026-03-09T10:05:00.000Z",
+  "initializing": false,
+  "decision": {
+    "tier": "t1Mid",
+    "confidence": "medium",
+    "decidedAt": "2026-03-09T10:04:58.000Z",
+    "deviceSignals": {
+      "platform": "android",
+      "deviceModel": "Pixel 6",
+      "totalRamBytes": 8589934592,
+      "isLowRamDevice": false,
+      "mediaPerformanceClass": 12,
+      "sdkInt": 34,
+      "thermalState": "fair",
+      "thermalStateLevel": 1,
+      "isLowPowerModeEnabled": false,
+      "memoryPressureState": "moderate",
+      "memoryPressureLevel": 1,
+      "frameDropState": "moderate",
+      "frameDropLevel": 1,
+      "frameDropRate": 0.18,
+      "frameDroppedCount": 12,
+      "frameSampledCount": 100,
+      "collectedAt": "2026-03-09T10:04:57.000Z"
+    },
+    "runtimeObservation": {
+      "status": "active",
+      "triggerReason": "memoryPressure=moderate(level=1), frameDrop=moderate(level=1, rate=18.0%)",
+      "statusDurationMs": 8000,
+      "downgradeTriggerCount": 2,
+      "recoveryTriggerCount": 0
+    },
+    "reasons": [
+      "totalRamBytes=8589934592.",
+      "mediaPerformanceClass=12 upgraded tier to t2High.",
+      "Runtime downgrade active: memoryPressure=moderate(level=1), frameDrop=moderate(level=1, rate=18.0%).",
+      "Resolved policy for tier=t1Mid."
+    ],
+    "appliedPolicies": {
+      "animationLevel": 1,
+      "decodeConcurrency": 1
+    }
+  },
+  "recentStructuredLogs": [
+    "PERF_TIER_LOG {\"event\":\"decision.recompute.started\",\"timestamp\":\"2026-03-09T10:04:57.500Z\",\"sessionId\":\"perf-tier-123\",\"payload\":{\"trigger\":\"initialize\"}}",
+    "PERF_TIER_LOG {\"event\":\"decision.recompute.completed\",\"timestamp\":\"2026-03-09T10:04:58.100Z\",\"sessionId\":\"perf-tier-123\",\"payload\":{\"trigger\":\"initialize\",\"transition\":{\"type\":\"initial\",\"toTier\":\"t1Mid\",\"toRuntimeStatus\":\"active\"},\"decision\":{\"tier\":\"t1Mid\",\"confidence\":\"medium\",\"decidedAt\":\"2026-03-09T10:04:58.000Z\",\"deviceSignals\":{\"platform\":\"android\",\"deviceModel\":\"Pixel 6\",\"totalRamBytes\":8589934592,\"isLowRamDevice\":false,\"mediaPerformanceClass\":12,\"sdkInt\":34,\"thermalState\":\"fair\",\"thermalStateLevel\":1,\"isLowPowerModeEnabled\":false,\"memoryPressureState\":\"moderate\",\"memoryPressureLevel\":1,\"frameDropState\":\"moderate\",\"frameDropLevel\":1,\"frameDropRate\":0.18,\"frameDroppedCount\":12,\"frameSampledCount\":100,\"collectedAt\":\"2026-03-09T10:04:57.000Z\"},\"runtimeObservation\":{\"status\":\"active\",\"triggerReason\":\"memoryPressure=moderate(level=1), frameDrop=moderate(level=1, rate=18.0%)\",\"statusDurationMs\":8000,\"downgradeTriggerCount\":2,\"recoveryTriggerCount\":0},\"reasons\":[\"Resolved policy for tier=t1Mid.\"],\"appliedPolicies\":{\"animationLevel\":1}}}}"
+  ],
+  "uploadProbe": {
+    "url": "http://example.com/upload",
+    "client": "dio",
+    "running": false,
+    "result": "success",
+    "error": null
+  }
+}

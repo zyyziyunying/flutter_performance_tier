@@ -97,3 +97,4 @@ final service = DefaultPerformanceTierService(
 - 规则说明：`docs/rulebook.md`
 - 场景策略映射：`docs/scene_policy_mapping.md`
 - 业务接入示例：`docs/business_integration_sample.md`
+- 诊断数据分析：`docs/diagnostics_analysis_workflow.md`

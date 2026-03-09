@@ -18,6 +18,7 @@
 - `runtime_dynamic_tiering.md`：运行期动态降级策略与联调建议。
 - `scene_policy_mapping.md`：首批高负载场景的策略映射定义。
 - `business_integration_sample.md`：业务侧按场景命中策略的接入样例。
+- `diagnostics_analysis_workflow.md`：拉取诊断数据后的批量分析流程与脚本用法。
 
 ## 4. 归档（Archived）
 
