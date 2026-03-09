@@ -18,13 +18,13 @@ class RuntimeTierControllerConfig {
     this.enableFrameDropSignal = false,
     this.moderateFrameDropLevel = 1,
     this.criticalFrameDropLevel = 2,
-  }) : assert(fairThermalStateLevel >= 0),
-       assert(seriousThermalStateLevel >= fairThermalStateLevel),
-       assert(criticalThermalStateLevel >= seriousThermalStateLevel),
-       assert(moderateMemoryPressureLevel >= 0),
-       assert(criticalMemoryPressureLevel >= moderateMemoryPressureLevel),
-       assert(moderateFrameDropLevel >= 0),
-       assert(criticalFrameDropLevel >= moderateFrameDropLevel);
+  })  : assert(fairThermalStateLevel >= 0),
+        assert(seriousThermalStateLevel >= fairThermalStateLevel),
+        assert(criticalThermalStateLevel >= seriousThermalStateLevel),
+        assert(moderateMemoryPressureLevel >= 0),
+        assert(criticalMemoryPressureLevel >= moderateMemoryPressureLevel),
+        assert(moderateFrameDropLevel >= 0),
+        assert(criticalFrameDropLevel >= moderateFrameDropLevel);
 
   final Duration downgradeDebounce;
   final Duration recoveryCooldown;
@@ -139,8 +139,7 @@ class RuntimeTierController {
 
     if (signal.downgradeSteps >= activeSteps) {
       _clearPendingUpgrade();
-      final hasNewDowngradeTrigger =
-          signal.downgradeSteps > activeSteps ||
+      final hasNewDowngradeTrigger = signal.downgradeSteps > activeSteps ||
           _activeSignalDescription != signal.description;
       if (hasNewDowngradeTrigger) {
         _downgradeTriggerCount += 1;
@@ -413,9 +412,8 @@ class RuntimeTierController {
       }
     }
 
-    final description = reasons.isEmpty
-        ? 'runtime pressure'
-        : reasons.join(', ');
+    final description =
+        reasons.isEmpty ? 'runtime pressure' : reasons.join(', ');
     return _RuntimePressureSignal(
       downgradeSteps: downgradeSteps,
       description: description,
@@ -454,9 +452,8 @@ class RuntimeTierController {
       return numericLevel;
     }
 
-    final memoryPressureState = signals.memoryPressureState
-        ?.trim()
-        .toLowerCase();
+    final memoryPressureState =
+        signals.memoryPressureState?.trim().toLowerCase();
     if (memoryPressureState == null || memoryPressureState.isEmpty) {
       return null;
     }
@@ -465,7 +462,8 @@ class RuntimeTierController {
       'critical' || 'severe' || 'high' => config.criticalMemoryPressureLevel,
       'moderate' ||
       'warning' ||
-      'elevated' => config.moderateMemoryPressureLevel,
+      'elevated' =>
+        config.moderateMemoryPressureLevel,
       'nominal' || 'normal' || 'none' || 'low' => 0,
       _ => null,
     };

@@ -37,10 +37,9 @@ class JsonLinePerformanceTierLogger implements PerformanceTierLogger {
     this.prefix = 'PERF_TIER_LOG',
     PerformanceTierLogEmitter? emitter,
     bool pretty = false,
-  }) : _emitter = emitter ?? debugPrint,
-       _encoder = pretty
-           ? const JsonEncoder.withIndent('  ')
-           : const JsonEncoder();
+  })  : _emitter = emitter ?? debugPrint,
+        _encoder =
+            pretty ? const JsonEncoder.withIndent('  ') : const JsonEncoder();
 
   final String prefix;
   final PerformanceTierLogEmitter _emitter;

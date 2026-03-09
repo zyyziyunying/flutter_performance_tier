@@ -17,15 +17,15 @@ void main() {
       ]);
       final configProvider = RecordingConfigProvider(const TierConfig());
       final engine = RecordingTierEngine(
-        decisionFactory:
-            ({required DeviceSignals signals, required TierConfig config}) {
-              return TierDecision(
-                tier: TierLevel.t3Ultra,
-                confidence: TierConfidence.high,
-                deviceSignals: signals,
-                reasons: const <String>['base tier selected by fake engine'],
-              );
-            },
+        decisionFactory: (
+            {required DeviceSignals signals, required TierConfig config}) {
+          return TierDecision(
+            tier: TierLevel.t3Ultra,
+            confidence: TierConfidence.high,
+            deviceSignals: signals,
+            reasons: const <String>['base tier selected by fake engine'],
+          );
+        },
       );
       const policy = PerformancePolicy(
         animationLevel: 1,
@@ -86,15 +86,15 @@ void main() {
         ]);
         final configProvider = RecordingConfigProvider(const TierConfig());
         final engine = RecordingTierEngine(
-          decisionFactory:
-              ({required DeviceSignals signals, required TierConfig config}) {
-                return TierDecision(
-                  tier: TierLevel.t3Ultra,
-                  confidence: TierConfidence.high,
-                  deviceSignals: signals,
-                  reasons: const <String>['base tier selected by fake engine'],
-                );
-              },
+          decisionFactory: (
+              {required DeviceSignals signals, required TierConfig config}) {
+            return TierDecision(
+              tier: TierLevel.t3Ultra,
+              confidence: TierConfidence.high,
+              deviceSignals: signals,
+              reasons: const <String>['base tier selected by fake engine'],
+            );
+          },
         );
         const policy = PerformancePolicy(
           animationLevel: 1,
@@ -153,25 +153,25 @@ void main() {
         ]);
         final frameDropSampler =
             SequenceFrameDropSignalSampler(<FrameDropSignalSnapshot>[
-              const FrameDropSignalSnapshot(
-                state: 'critical',
-                level: 2,
-                dropRate: 0.35,
-                droppedFrameCount: 22,
-                sampledFrameCount: 60,
-              ),
-            ]);
+          const FrameDropSignalSnapshot(
+            state: 'critical',
+            level: 2,
+            dropRate: 0.35,
+            droppedFrameCount: 22,
+            sampledFrameCount: 60,
+          ),
+        ]);
         final configProvider = RecordingConfigProvider(const TierConfig());
         final engine = RecordingTierEngine(
-          decisionFactory:
-              ({required DeviceSignals signals, required TierConfig config}) {
-                return TierDecision(
-                  tier: TierLevel.t3Ultra,
-                  confidence: TierConfidence.high,
-                  deviceSignals: signals,
-                  reasons: const <String>['base tier selected by fake engine'],
-                );
-              },
+          decisionFactory: (
+              {required DeviceSignals signals, required TierConfig config}) {
+            return TierDecision(
+              tier: TierLevel.t3Ultra,
+              confidence: TierConfidence.high,
+              deviceSignals: signals,
+              reasons: const <String>['base tier selected by fake engine'],
+            );
+          },
         );
         const policy = PerformancePolicy(
           animationLevel: 1,
@@ -236,14 +236,14 @@ void main() {
           ),
         ]);
         final engine = RecordingTierEngine(
-          decisionFactory:
-              ({required DeviceSignals signals, required TierConfig config}) {
-                return TierDecision(
-                  tier: TierLevel.t3Ultra,
-                  confidence: TierConfidence.high,
-                  deviceSignals: signals,
-                );
-              },
+          decisionFactory: (
+              {required DeviceSignals signals, required TierConfig config}) {
+            return TierDecision(
+              tier: TierLevel.t3Ultra,
+              confidence: TierConfidence.high,
+              deviceSignals: signals,
+            );
+          },
         );
         final service = DefaultPerformanceTierService(
           signalCollector: collector,

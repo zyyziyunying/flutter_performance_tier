@@ -63,8 +63,7 @@ void main() {
       expect(
         p95Us,
         lessThanOrEqualTo(300000),
-        reason:
-            'Expected p95<=300ms but got p95=${toMilliseconds(p95Us)}ms, '
+        reason: 'Expected p95<=300ms but got p95=${toMilliseconds(p95Us)}ms, '
             'max=${toMilliseconds(maxUs)}ms.',
       );
     });

@@ -13,12 +13,12 @@ class TierConfig {
     this.minSdkForHighTier = 0,
     this.minSdkForUltraTier = 0,
     this.modelTierCaps = const <ModelTierCapRule>[],
-  }) : assert(lowRamMaxBytes > 0),
-       assert(lowRamMaxBytes <= midRamMaxBytes),
-       assert(midRamMaxBytes <= highRamMaxBytes),
-       assert(highMediaPerformanceClass <= ultraMediaPerformanceClass),
-       assert(minSdkForHighTier >= 0),
-       assert(minSdkForUltraTier >= minSdkForHighTier);
+  })  : assert(lowRamMaxBytes > 0),
+        assert(lowRamMaxBytes <= midRamMaxBytes),
+        assert(midRamMaxBytes <= highRamMaxBytes),
+        assert(highMediaPerformanceClass <= ultraMediaPerformanceClass),
+        assert(minSdkForHighTier >= 0),
+        assert(minSdkForUltraTier >= minSdkForHighTier);
 
   static const int _bytesPerGb = 1024 * 1024 * 1024;
 

@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import '../config/config_provider.dart';
+import '../config/tier_config.dart';
 import '../engine/rule_based_tier_engine.dart';
 import '../engine/tier_engine.dart';
 import '../logging/performance_tier_logger.dart';
@@ -26,26 +27,24 @@ class DefaultPerformanceTierService implements PerformanceTierService {
     Duration runtimeSignalRefreshInterval = const Duration(seconds: 15),
     bool enableFrameDropSignal = false,
     PerformanceTierLogger? logger,
-  }) : _signalCollector =
-           signalCollector ?? MethodChannelDeviceSignalCollector(),
-       _engine = engine ?? const RuleBasedTierEngine(),
-       _policyResolver = policyResolver ?? const DefaultPolicyResolver(),
-       _configProvider = configProvider ?? const DefaultConfigProvider(),
-       _runtimeTierController =
-           runtimeTierController ??
-           RuntimeTierController(
-             config: RuntimeTierControllerConfig(
-               enableFrameDropSignal: enableFrameDropSignal,
-             ),
-           ),
-       _frameDropSignalSampler =
-           frameDropSignalSampler ??
-           (enableFrameDropSignal
-               ? SchedulerFrameDropSignalSampler()
-               : const DisabledFrameDropSignalSampler()),
-       _runtimeSignalRefreshInterval = runtimeSignalRefreshInterval,
-       _logger = logger ?? const SilentPerformanceTierLogger(),
-       _sessionId = _buildSessionId();
+  })  : _signalCollector =
+            signalCollector ?? MethodChannelDeviceSignalCollector(),
+        _engine = engine ?? const RuleBasedTierEngine(),
+        _policyResolver = policyResolver ?? const DefaultPolicyResolver(),
+        _configProvider = configProvider ?? const DefaultConfigProvider(),
+        _runtimeTierController = runtimeTierController ??
+            RuntimeTierController(
+              config: RuntimeTierControllerConfig(
+                enableFrameDropSignal: enableFrameDropSignal,
+              ),
+            ),
+        _frameDropSignalSampler = frameDropSignalSampler ??
+            (enableFrameDropSignal
+                ? SchedulerFrameDropSignalSampler()
+                : const DisabledFrameDropSignalSampler()),
+        _runtimeSignalRefreshInterval = runtimeSignalRefreshInterval,
+        _logger = logger ?? const SilentPerformanceTierLogger(),
+        _sessionId = _buildSessionId();
 
   final DeviceSignalCollector _signalCollector;
   final TierEngine _engine;
@@ -60,19 +59,26 @@ class DefaultPerformanceTierService implements PerformanceTierService {
       StreamController<TierDecision>.broadcast();
 
   TierDecision? _currentDecision;
+  Future<void>? _initializeInFlight;
   Future<void>? _recomputeInFlight;
   Timer? _runtimeSignalTimer;
   bool _initialized = false;
   bool _disposed = false;
 
   @override
-  Future<void> initialize() async {
+  Future<void> initialize() {
     if (_initialized || _disposed) {
       _logEvent('service.initialize.skipped', <String, Object?>{
         'initialized': _initialized,
         'disposed': _disposed,
       });
-      return;
+      return Future<void>.value();
+    }
+
+    final inFlight = _initializeInFlight;
+    if (inFlight != null) {
+      _logEvent('service.initialize.coalesced');
+      return inFlight;
     }
 
     _logEvent('service.initialize.started', <String, Object?>{
@@ -81,14 +87,11 @@ class DefaultPerformanceTierService implements PerformanceTierService {
       'frameDropSignalEnabled':
           _runtimeTierController.config.enableFrameDropSignal,
     });
-    _initialized = true;
-    _frameDropSignalSampler.start();
-    _startRuntimeSignalPolling();
-    await _recomputeDecisionSafely(trigger: _RecomputeTrigger.initialize);
-    _logEvent('service.initialize.completed', <String, Object?>{
-      'hasDecision': _currentDecision != null,
-      'tier': _currentDecision?.tier.name,
+    final next = _initializeSafely().whenComplete(() {
+      _initializeInFlight = null;
     });
+    _initializeInFlight = next;
+    return next;
   }
 
   @override
@@ -96,16 +99,16 @@ class DefaultPerformanceTierService implements PerformanceTierService {
     if (!_initialized) {
       await initialize();
     }
-    return _currentDecision!;
+    return _requireCurrentDecision();
   }
 
   @override
   Stream<TierDecision> watchDecision() async* {
     if (_currentDecision != null) {
-      yield _currentDecision!;
+      yield _requireCurrentDecision();
     } else if (!_initialized) {
       await initialize();
-      yield _currentDecision!;
+      yield _requireCurrentDecision();
     }
 
     yield* _decisionController.stream;
@@ -191,26 +194,29 @@ class DefaultPerformanceTierService implements PerformanceTierService {
     _logEvent('decision.recompute.started', <String, Object?>{
       'trigger': trigger.wireName,
     });
-    final config = await _configProvider.load();
+    TierConfig config;
+    try {
+      config = await _configProvider.load();
+    } catch (error) {
+      _emitFallbackDecision(
+        error: error,
+        trigger: trigger,
+        failureStage: 'configLoad',
+        failureReason: 'Failed to load performance tier config: $error',
+      );
+      return;
+    }
+
     DeviceSignals signals;
     try {
       signals = await _signalCollector.collect();
     } catch (error) {
-      final fallbackDecision = _buildFallbackDecision(error);
-      final previousDecision = _currentDecision;
-      _currentDecision = fallbackDecision;
-      _logEvent('decision.recompute.fallback', <String, Object?>{
-        'trigger': trigger.wireName,
-        'error': '$error',
-        'transition': _buildTransition(
-          previous: previousDecision,
-          current: fallbackDecision,
-        ),
-        'decision': fallbackDecision.toMap(),
-      });
-      if (!_disposed && !_decisionController.isClosed) {
-        _decisionController.add(fallbackDecision);
-      }
+      _emitFallbackDecision(
+        error: error,
+        trigger: trigger,
+        failureStage: 'signalCollect',
+        failureReason: 'Failed to collect platform signals: $error',
+      );
       return;
     }
     signals = _mergeFrameDropSignals(signals);
@@ -249,6 +255,32 @@ class DefaultPerformanceTierService implements PerformanceTierService {
     }
   }
 
+  Future<void> _initializeSafely() async {
+    _frameDropSignalSampler.start();
+    try {
+      await _recomputeDecisionSafely(trigger: _RecomputeTrigger.initialize);
+      if (_disposed) {
+        _logEvent('service.initialize.aborted', const <String, Object?>{
+          'reason': 'disposedDuringInitialize',
+        });
+        return;
+      }
+      final decision = _requireCurrentDecision();
+      _initialized = true;
+      _startRuntimeSignalPolling();
+      _logEvent('service.initialize.completed', <String, Object?>{
+        'hasDecision': true,
+        'tier': decision.tier.name,
+      });
+    } catch (error) {
+      _frameDropSignalSampler.stop();
+      _logEvent('service.initialize.failed', <String, Object?>{
+        'error': '$error',
+      });
+      rethrow;
+    }
+  }
+
   DeviceSignals _mergeFrameDropSignals(DeviceSignals signals) {
     final snapshot = _frameDropSignalSampler.currentSnapshot();
     if (!snapshot.hasSignal) {
@@ -263,7 +295,31 @@ class DefaultPerformanceTierService implements PerformanceTierService {
     );
   }
 
-  TierDecision _buildFallbackDecision(Object error) {
+  void _emitFallbackDecision({
+    required Object error,
+    required _RecomputeTrigger trigger,
+    required String failureStage,
+    required String failureReason,
+  }) {
+    final fallbackDecision = _buildFallbackDecision(failureReason);
+    final previousDecision = _currentDecision;
+    _currentDecision = fallbackDecision;
+    _logEvent('decision.recompute.fallback', <String, Object?>{
+      'trigger': trigger.wireName,
+      'error': '$error',
+      'failureStage': failureStage,
+      'transition': _buildTransition(
+        previous: previousDecision,
+        current: fallbackDecision,
+      ),
+      'decision': fallbackDecision.toMap(),
+    });
+    if (!_disposed && !_decisionController.isClosed) {
+      _decisionController.add(fallbackDecision);
+    }
+  }
+
+  TierDecision _buildFallbackDecision(String reason) {
     final now = DateTime.now();
     final fallbackSignals = DeviceSignals(
       platform: 'unknown',
@@ -273,8 +329,19 @@ class DefaultPerformanceTierService implements PerformanceTierService {
       tier: TierLevel.t1Mid,
       confidence: TierConfidence.low,
       deviceSignals: fallbackSignals,
-      reasons: <String>['Failed to collect platform signals: $error'],
+      reasons: <String>[reason],
       appliedPolicies: _policyResolver.resolve(TierLevel.t1Mid).toMap(),
+    );
+  }
+
+  TierDecision _requireCurrentDecision() {
+    final decision = _currentDecision;
+    if (decision != null) {
+      return decision;
+    }
+    throw StateError(
+      'Performance tier decision is unavailable. Initialize the service '
+      'successfully before requesting the current decision.',
     );
   }
 

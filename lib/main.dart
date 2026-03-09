@@ -53,9 +53,9 @@ class _PerformanceTierDemoPageState extends State<PerformanceTierDemoPage> {
 
   late final JsonLinePerformanceTierLogger _logger =
       JsonLinePerformanceTierLogger(
-        prefix: 'PERF_TIER_LOG',
-        emitter: _onStructuredLogLine,
-      );
+    prefix: 'PERF_TIER_LOG',
+    emitter: _onStructuredLogLine,
+  );
   late final DefaultPerformanceTierService _service =
       DefaultPerformanceTierService(logger: _logger);
   late final Dio _dio = Dio();
@@ -252,8 +252,7 @@ class _PerformanceTierDemoPageState extends State<PerformanceTierDemoPage> {
     try {
       final token = await _resolveUploadToken();
       final now = DateTime.now();
-      final fileName =
-          'performance_tier_report_'
+      final fileName = 'performance_tier_report_'
           '${now.toUtc().toIso8601String().replaceAll(':', '').replaceAll('.', '')}.json';
       final uploadResult = await _logUploadClient.upload(
         uploadUri: Uri.parse(_uploadUrl),

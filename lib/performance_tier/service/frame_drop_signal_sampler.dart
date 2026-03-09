@@ -61,14 +61,14 @@ class SchedulerFrameDropSignalSampler implements FrameDropSignalSampler {
     this.criticalDroppedFrameCount = 20,
     this.minSampledFrameCount = 60,
     DateTime Function()? now,
-  }) : assert(!sampleWindow.isNegative),
-       assert(targetFrameBudget > Duration.zero),
-       assert(moderateDropRate >= 0 && moderateDropRate <= 1),
-       assert(criticalDropRate >= moderateDropRate && criticalDropRate <= 1),
-       assert(moderateDroppedFrameCount >= 0),
-       assert(criticalDroppedFrameCount >= moderateDroppedFrameCount),
-       assert(minSampledFrameCount >= 0),
-       _now = now ?? DateTime.now;
+  })  : assert(!sampleWindow.isNegative),
+        assert(targetFrameBudget > Duration.zero),
+        assert(moderateDropRate >= 0 && moderateDropRate <= 1),
+        assert(criticalDropRate >= moderateDropRate && criticalDropRate <= 1),
+        assert(moderateDroppedFrameCount >= 0),
+        assert(criticalDroppedFrameCount >= moderateDroppedFrameCount),
+        assert(minSampledFrameCount >= 0),
+        _now = now ?? DateTime.now;
 
   final Duration sampleWindow;
   final Duration targetFrameBudget;

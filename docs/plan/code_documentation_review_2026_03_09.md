@@ -53,6 +53,12 @@
 - 至少把 `_configProvider.load()` 纳入统一异常处理路径。
 - 为“配置加载失败”补一个明确测试，避免以后改造时回归。
 
+**处理结果（2026-03-09）**
+
+- `DefaultPerformanceTierService.initialize()` 已改为通过 in-flight 初始化保护串行化，并在首个 `TierDecision` 就绪后才进入 initialized 状态与启动 runtime polling。
+- `_configProvider.load()` 与 `collect()` 已统一纳入 fallback 路径；配置加载失败时会产出 fallback decision，并记录 `failureStage=configLoad` 便于日志定位。
+- 已补“配置加载失败后 fallback 且后续 refresh 可恢复”与“配置加载失败日志分阶段记录”测试，防止后续回归。
+
 ### 3.2 中优先级：Service 抽象没有暴露释放能力
 
 **涉及文件**

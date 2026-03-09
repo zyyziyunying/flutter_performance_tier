@@ -15,9 +15,9 @@ class TierDecision {
     Map<String, Object?> appliedPolicies = const <String, Object?>{},
     this.runtimeObservation = const RuntimeTierObservation(),
     DateTime? decidedAt,
-  }) : reasons = List<String>.unmodifiable(reasons),
-       appliedPolicies = Map<String, Object?>.unmodifiable(appliedPolicies),
-       decidedAt = decidedAt ?? DateTime.now();
+  })  : reasons = List<String>.unmodifiable(reasons),
+        appliedPolicies = Map<String, Object?>.unmodifiable(appliedPolicies),
+        decidedAt = decidedAt ?? DateTime.now();
 
   final TierLevel tier;
   final TierConfidence confidence;

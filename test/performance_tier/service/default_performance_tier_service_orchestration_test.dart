@@ -15,15 +15,15 @@ void main() {
       ]);
       final configProvider = RecordingConfigProvider(const TierConfig());
       final engine = RecordingTierEngine(
-        decisionFactory:
-            ({required DeviceSignals signals, required TierConfig config}) {
-              return TierDecision(
-                tier: TierLevel.t2High,
-                confidence: TierConfidence.medium,
-                deviceSignals: signals,
-                reasons: const <String>['tier selected by fake engine'],
-              );
-            },
+        decisionFactory: (
+            {required DeviceSignals signals, required TierConfig config}) {
+          return TierDecision(
+            tier: TierLevel.t2High,
+            confidence: TierConfidence.medium,
+            deviceSignals: signals,
+            reasons: const <String>['tier selected by fake engine'],
+          );
+        },
       );
       const policy = PerformancePolicy(
         animationLevel: 2,
@@ -72,18 +72,18 @@ void main() {
         ]);
         final configProvider = RecordingConfigProvider(const TierConfig());
         final engine = RecordingTierEngine(
-          decisionFactory:
-              ({required DeviceSignals signals, required TierConfig config}) {
-                final tier = signals.totalRamBytes == 12 * bytesPerGb
-                    ? TierLevel.t3Ultra
-                    : TierLevel.t1Mid;
-                return TierDecision(
-                  tier: tier,
-                  confidence: TierConfidence.medium,
-                  deviceSignals: signals,
-                  reasons: const <String>['from fake engine'],
-                );
-              },
+          decisionFactory: (
+              {required DeviceSignals signals, required TierConfig config}) {
+            final tier = signals.totalRamBytes == 12 * bytesPerGb
+                ? TierLevel.t3Ultra
+                : TierLevel.t1Mid;
+            return TierDecision(
+              tier: tier,
+              confidence: TierConfidence.medium,
+              deviceSignals: signals,
+              reasons: const <String>['from fake engine'],
+            );
+          },
         );
         final resolver = RecordingPolicyResolver(
           const PerformancePolicy(
@@ -163,14 +163,14 @@ void main() {
         StateError('collector offline'),
       );
       final engine = RecordingTierEngine(
-        decisionFactory:
-            ({required DeviceSignals signals, required TierConfig config}) {
-              return TierDecision(
-                tier: TierLevel.t3Ultra,
-                confidence: TierConfidence.high,
-                deviceSignals: signals,
-              );
-            },
+        decisionFactory: (
+            {required DeviceSignals signals, required TierConfig config}) {
+          return TierDecision(
+            tier: TierLevel.t3Ultra,
+            confidence: TierConfidence.high,
+            deviceSignals: signals,
+          );
+        },
       );
       final resolver = RecordingPolicyResolver(
         const PerformancePolicy(
@@ -201,5 +201,78 @@ void main() {
       expect(engine.evaluateCallCount, 0);
       expect(resolver.resolveCalls, <TierLevel>[TierLevel.t1Mid]);
     });
+
+    test(
+      'config load failure falls back and later refresh can recover',
+      () async {
+        final collector = SequenceSignalCollector(<DeviceSignals>[
+          androidSignals(
+            ramBytes: 12 * bytesPerGb,
+            mediaPerformanceClass: 13,
+            sdkInt: 35,
+          ),
+        ]);
+        final configProvider = SequenceConfigProvider(<Object>[
+          StateError('config unavailable'),
+          const TierConfig(),
+        ]);
+        final engine = RecordingTierEngine(
+          decisionFactory: (
+              {required DeviceSignals signals, required TierConfig config}) {
+            return TierDecision(
+              tier: TierLevel.t3Ultra,
+              confidence: TierConfidence.high,
+              deviceSignals: signals,
+              reasons: const <String>['from fake engine'],
+            );
+          },
+        );
+        final resolver = RecordingPolicyResolver(
+          const PerformancePolicy(
+            animationLevel: 1,
+            mediaPreloadCount: 2,
+            decodeConcurrency: 1,
+            imageMaxSidePx: 1080,
+          ),
+        );
+        final service = DefaultPerformanceTierService(
+          signalCollector: collector,
+          configProvider: configProvider,
+          engine: engine,
+          policyResolver: resolver,
+          runtimeSignalRefreshInterval: Duration.zero,
+        );
+        addTearDown(service.dispose);
+
+        await service.initialize();
+        final fallbackDecision = await service.getCurrentDecision();
+
+        expect(configProvider.loadCallCount, 1);
+        expect(collector.collectCallCount, 0);
+        expect(engine.evaluateCallCount, 0);
+        expect(fallbackDecision.tier, TierLevel.t1Mid);
+        expect(fallbackDecision.confidence, TierConfidence.low);
+        expect(fallbackDecision.deviceSignals.platform, 'unknown');
+        expect(
+          fallbackDecision.reasons.single,
+          contains('Failed to load performance tier config:'),
+        );
+        expect(resolver.resolveCalls, <TierLevel>[TierLevel.t1Mid]);
+
+        await service.refresh();
+        final recoveredDecision = await service.getCurrentDecision();
+
+        expect(configProvider.loadCallCount, 2);
+        expect(collector.collectCallCount, 1);
+        expect(engine.evaluateCallCount, 1);
+        expect(recoveredDecision.tier, TierLevel.t3Ultra);
+        expect(recoveredDecision.confidence, TierConfidence.high);
+        expect(recoveredDecision.deviceSignals.platform, 'android');
+        expect(resolver.resolveCalls, <TierLevel>[
+          TierLevel.t1Mid,
+          TierLevel.t3Ultra,
+        ]);
+      },
+    );
   });
 }
