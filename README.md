@@ -20,6 +20,7 @@
 - `flutter test`
 - `flutter run`
 - `flutter run -t lib/internal_upload_probe_main.dart`
+- `flutter pub run build_runner build --delete-conflicting-outputs --define flutter_secure_dotenv_generator:flutter_secure_dotenv=OUTPUT_FILE=encryption_key.json`
 
 ## 结构化日志优先（已移除面板）
 
@@ -32,6 +33,35 @@
 
 默认 `main.dart` 只保留最小诊断示例。  
 内部上传探针已拆到独立入口：`flutter run -t lib/internal_upload_probe_main.dart`。
+
+## 内部上传探针配置
+
+`internal_upload_probe_main.dart` 现在按以下优先级读取配置：
+
+1. `--dart-define`
+2. `lib/internal_upload_probe/internal_upload_probe_env.dart` 对应的 secure env
+
+支持的键：
+
+- `UPLOAD_PROBE_URL`
+- `UPLOAD_PROBE_LOGIN_URL`
+- `UPLOAD_PROBE_TOKEN`
+- `UPLOAD_PROBE_USERNAME`
+- `UPLOAD_PROBE_PASSWORD`
+- `UPLOAD_PROBE_SOURCE`
+- `UPLOAD_PROBE_AUTH_SESSION_KEY`
+
+如需本地 secure env，可从 `.env.internal_upload_probe.example` 复制出 `.env.internal_upload_probe`。
+
+当前仓库已经固定了 `internal_upload_probe_env.dart` 里的 `_encryptionKey` / `_iv`，所以你在修改 `.env.internal_upload_probe` 后，应沿用这两个值重新生成：
+
+```bash
+flutter pub run build_runner build \
+  --delete-conflicting-outputs \
+  --define flutter_secure_dotenv_generator:flutter_secure_dotenv=ENCRYPTION_KEY=JxdHpbfQMpnFdghEeyDHKO0zHJz3IkBlE7n5hodXzAo= \
+  --define flutter_secure_dotenv_generator:flutter_secure_dotenv=IV=I9nqIzp5hTpEIr/LRcS4dg== \
+  --define flutter_secure_dotenv_generator:flutter_secure_dotenv=OUTPUT_FILE=encryption_key.json
+```
 
 ## 生命周期
 

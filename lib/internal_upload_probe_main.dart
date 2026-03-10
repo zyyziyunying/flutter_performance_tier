@@ -1,13 +1,12 @@
 import 'dart:async';
-import 'dart:convert';
 
 import 'package:common/common.dart';
-import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 
 import 'demo/performance_tier_demo_controller.dart';
 import 'demo/performance_tier_diagnostics_scaffold.dart';
-import 'internal_upload_probe/upload_probe_auth_service.dart';
+import 'internal_upload_probe/upload_probe_client.dart';
+import 'internal_upload_probe/upload_probe_runtime_config.dart';
 
 void main() {
   runApp(const PerformanceTierInternalUploadProbeApp());
@@ -41,35 +40,14 @@ class PerformanceTierInternalUploadProbePage extends StatefulWidget {
 
 class _PerformanceTierInternalUploadProbePageState
     extends State<PerformanceTierInternalUploadProbePage> {
-  static const String _uploadUrl = 'http://47.110.52.208:7777/upload';
-  static const String _loginUrl = 'http://47.110.52.208:7777/user/login';
-  static const String _uploadTokenFromEnv = String.fromEnvironment(
-    'UPLOAD_PROBE_TOKEN',
-  );
-  static const String _uploadUsername = 'zyyziyunying';
-  static const String _uploadPassword = '123456';
-
   late final PerformanceTierDemoController _controller =
       PerformanceTierDemoController();
-  late final Dio _dio = Dio();
-  late final UploadProbeAuthConfig _authConfig = UploadProbeAuthConfig(
-    loginUrl: _loginUrl,
-    tokenFromEnv: _uploadTokenFromEnv,
-    username: _uploadUsername,
-    password: _uploadPassword,
-  );
-  late final UploadProbeAuthService _authService =
-      UploadProbeAuthService.secureStorage(
-    config: _authConfig,
-    dio: _dio,
+  late final UploadProbeRuntimeConfig _config =
+      UploadProbeRuntimeConfig.resolve();
+  late final UploadProbeClient _uploadProbeClient =
+      UploadProbeClient.secureStorage(
+    config: _config,
     logger: _controller.recordDiagnosticLog,
-  );
-  late final LogUploadClient _logUploadClient = LogUploadClient(
-    uploader: DioLogUploader(dio: _dio),
-    defaults: const LogUploadDefaults(
-      timeout: Duration(seconds: 30),
-      fields: <String, String>{'source': 'flutter_performance_tier'},
-    ),
   );
   StreamSubscription<AuthState>? _authStateSubscription;
 
@@ -85,18 +63,18 @@ class _PerformanceTierInternalUploadProbePageState
   @override
   void initState() {
     super.initState();
-    _updateAuthStateFields(_authService.currentState);
-    _authStateSubscription = _authService.watchState().listen(_onAuthState);
-    unawaited(_authService.bootstrap());
+    _updateAuthStateFields(_uploadProbeClient.currentState);
+    _authStateSubscription =
+        _uploadProbeClient.watchState().listen(_onAuthState);
+    unawaited(_uploadProbeClient.bootstrap());
     unawaited(_controller.start());
   }
 
   @override
   void dispose() {
     unawaited(_authStateSubscription?.cancel());
-    unawaited(_authService.dispose());
+    unawaited(_uploadProbeClient.dispose());
     unawaited(_controller.close());
-    _dio.close(force: true);
     super.dispose();
   }
 
@@ -111,45 +89,20 @@ class _PerformanceTierInternalUploadProbePageState
     });
 
     try {
-      final token = await _authService.resolveAccessToken();
-      final now = DateTime.now();
-      final fileName = 'performance_tier_report_'
-          '${now.toUtc().toIso8601String().replaceAll(':', '').replaceAll('.', '')}.json';
-      final uploadResult = await _logUploadClient.upload(
-        uploadUri: Uri.parse(_uploadUrl),
-        fileContent: _controller.buildAiReport(
+      final result = await _uploadProbeClient.uploadReport(
+        reportContent: _controller.buildAiReport(
           extraSections: _buildUploadProbeReport(),
         ),
-        token: token,
-        fileName: fileName,
-        fields: <String, String>{'generatedAt': now.toIso8601String()},
       );
-      final detail = _logUploadClient.formatResultDetail(
-        uploadResult,
-        responsePreviewMaxLength: 400,
-      );
-      if (!uploadResult.success) {
-        _controller.recordDiagnosticLog('[dio_upload_probe] failed: $detail');
+      if (!result.success) {
         setState(() {
-          _uploadError = detail;
+          _uploadError = result.error ?? result.detail;
         });
         return;
       }
 
-      _controller.recordDiagnosticLog('[dio_upload_probe] success: $detail');
       setState(() {
-        _uploadResult = detail;
-      });
-    } on DioException catch (error) {
-      final errorText = _formatDioException(error);
-      _controller.recordDiagnosticLog('[dio_upload_probe] failed: $errorText');
-      setState(() {
-        _uploadError = errorText;
-      });
-    } catch (error) {
-      _controller.recordDiagnosticLog('[dio_upload_probe] failed: $error');
-      setState(() {
-        _uploadError = '$error';
+        _uploadResult = result.detail;
       });
     } finally {
       if (mounted) {
@@ -171,7 +124,7 @@ class _PerformanceTierInternalUploadProbePageState
     });
 
     try {
-      await _authService.clearSession();
+      await _uploadProbeClient.clearSession();
       _controller.recordDiagnosticLog('[upload_probe_auth] session cleared');
     } catch (error) {
       setState(() {
@@ -193,47 +146,6 @@ class _PerformanceTierInternalUploadProbePageState
     setState(() {
       _updateAuthStateFields(state);
     });
-  }
-
-  String _formatDioException(DioException error) {
-    final statusCode = error.response?.statusCode;
-    final responsePreview = _formatResponsePreview(error.response?.data);
-    final message = error.message?.trim();
-    final cause = error.error?.toString().trim();
-    final details = <String>[
-      'type=${error.type.name}',
-      if (message != null && message.isNotEmpty) 'message=$message',
-      if (cause != null && cause.isNotEmpty && cause != message) 'cause=$cause',
-      'url=${error.requestOptions.uri}',
-    ].join(', ');
-    if (statusCode == null) {
-      return details;
-    }
-    return '$details, status=$statusCode, response=$responsePreview';
-  }
-
-  String _formatResponsePreview(Object? data) {
-    if (data == null) {
-      return '-';
-    }
-    if (data is List<int>) {
-      return _truncatePreview(utf8.decode(data, allowMalformed: true));
-    }
-    if (data is String) {
-      return _truncatePreview(data);
-    }
-    if (data is Map || data is List) {
-      final text = const JsonEncoder.withIndent('  ').convert(data);
-      return _truncatePreview(text);
-    }
-    return _truncatePreview(data.toString());
-  }
-
-  String _truncatePreview(String text) {
-    if (text.length <= 400) {
-      return text;
-    }
-    return '${text.substring(0, 400)}...';
   }
 
   void _updateAuthStateFields(AuthState state) {
@@ -267,14 +179,14 @@ class _PerformanceTierInternalUploadProbePageState
         'subjectId': _authSubject == '-' ? null : _authSubject,
         'accessTokenPreview': _authTokenPreview,
         'expiresAt': _authExpiresAt == '-' ? null : _authExpiresAt,
-        'loginUrl': _loginUrl,
-        'hasTokenFromEnv': _uploadTokenFromEnv.isNotEmpty,
-        'hasPasswordCredentials':
-            _uploadUsername.isNotEmpty && _uploadPassword.isNotEmpty,
+        'loginUrl': _config.authConfig.loginUrl,
+        'hasTokenFromEnv': _config.authConfig.hasToken,
+        'hasPasswordCredentials': _config.authConfig.hasCredentials,
       },
       'uploadProbe': <String, Object?>{
-        'url': _uploadUrl,
-        'client': _logUploadClient.clientLabel,
+        'url': _config.uploadUri.toString(),
+        'source': _config.source,
+        'client': _uploadProbeClient.clientLabel,
         'running': _runningUpload,
         'result': _uploadResult,
         if (_uploadError != null) 'error': _uploadError,
@@ -335,11 +247,15 @@ class _PerformanceTierInternalUploadProbePageState
           ],
           sectionsBeforeReport: <Widget>[
             Text(
-              'Upload endpoint: $_uploadUrl',
+              'Upload endpoint: ${_config.uploadUri}',
               style: Theme.of(context).textTheme.bodySmall,
             ),
             Text(
-              'Login endpoint: $_loginUrl',
+              'Login endpoint: ${_config.authConfig.loginUrl}',
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+            Text(
+              'Upload source: ${_config.source}',
               style: Theme.of(context).textTheme.bodySmall,
             ),
             Text(

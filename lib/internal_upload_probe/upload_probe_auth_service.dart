@@ -246,14 +246,15 @@ class UploadProbeAuthService {
     if (_config.hasToken) {
       throw StateError(
         'UPLOAD_PROBE_TOKEN is missing or expired. '
-        'Provide UPLOAD_PROBE_USERNAME/UPLOAD_PROBE_PASSWORD to renew it, '
-        'or replace the token.',
+        'Provide UPLOAD_PROBE_USERNAME/UPLOAD_PROBE_PASSWORD via secure env '
+        'or --dart-define to renew it, or replace the token.',
       );
     }
     if (!_config.hasCredentials) {
       throw StateError(
         'Missing upload auth. Set UPLOAD_PROBE_TOKEN or '
-        'UPLOAD_PROBE_USERNAME/UPLOAD_PROBE_PASSWORD via --dart-define.',
+        'UPLOAD_PROBE_USERNAME/UPLOAD_PROBE_PASSWORD via secure env '
+        'or --dart-define.',
       );
     }
 

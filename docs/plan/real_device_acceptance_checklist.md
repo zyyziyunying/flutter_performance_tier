@@ -9,7 +9,7 @@
 - [ ] 使用真机（非模拟器）各 1 台：Android / iOS。
 - [ ] `flutter run` 启动成功，Demo 页面可见。
 - [ ] 如需验证上传链路，使用 `flutter run -t lib/internal_upload_probe_main.dart` 启动内部 probe Demo。
-- [ ] 上传鉴权参数可用（`UPLOAD_PROBE_TOKEN` 或 `UPLOAD_PROBE_USERNAME` + `UPLOAD_PROBE_PASSWORD`）。
+- [ ] 上传鉴权参数可用（secure env 或 `--dart-define` 提供 `UPLOAD_PROBE_TOKEN`，或 `UPLOAD_PROBE_USERNAME` + `UPLOAD_PROBE_PASSWORD`）。
 
 ## 2. 核心功能（两端都做）
 
